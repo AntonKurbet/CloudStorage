@@ -6,7 +6,10 @@ import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
+
+import static java.lang.Thread.sleep;
 
 public class Server {
 
@@ -22,32 +25,38 @@ public class Server {
         BasicConfigurator.configure();
         connect();
         if (client != null) {
-            getObjectSequence();
-            //getByProtocol();
+            // тут 2 варианта передачи:
+            // 1. getObjectSequence() - объектами FileMessage - частями по PART_LEN байт данных,
+            //    через ObjectInputStream/ObjectOutputStream
+            // 2. getByProtocol() - через DataInputStream/DataOutputStream в формате протокола
+            //       31<длина имени><имя><длина данных><данные>
+            //    одним куском
+
+            //getObjectSequence();
+            getByProtocol();
         }
         else LOGGER.error("Not connected");
     }
 
-//    private static void getByProtocol() {
-//        try (InputStream input = client.getInputStream();
-//             DataInputStream byteInput = new DataInputStream(input)) {
-//            while (byteInput.readByte() != START_BYTE) ;
-//            int size = byteInput.readInt();
-//            byte[] nameBytes = new byte[size];
-//            byteInput.read(nameBytes);
-//            size = byteInput.readInt();
-//            byte[] dataBytes = new byte[size];
-//            byteInput.read(dataBytes);
-//
-//            FileMessage obj = new FileMessage(nameBytes.toString(),dataBytes, LocalDate.now(),true);
-//            LOGGER.info(String.format("Received object: %s",obj.toString()));
-//            obj.writeData("file.txt");
-//        } catch (IOException e) {
-//            LOGGER.error(e.getMessage());
-//        } catch (EOFException e) {
-//            continue;
-//        }
-//    }
+    private static void getByProtocol() {
+        try (InputStream input = client.getInputStream()) {
+            DataInputStream byteInput = new DataInputStream(input);
+            while (byteInput.readByte() != START_BYTE) sleep(100);
+            int size = byteInput.readInt();
+            byte[] nameBytes = new byte[size];
+            byteInput.read(nameBytes);
+            String fileName = new String(nameBytes, StandardCharsets.UTF_8);
+            size = byteInput.readInt();
+            byte[] dataBytes = new byte[size];
+            byteInput.read(dataBytes);
+            byteInput.close();
+            FileMessage obj = new FileMessage(fileName,dataBytes, LocalDate.now(),true);
+            LOGGER.info(String.format("Received object: %s",obj.toString()));
+            obj.writeData(OUT_PATH + fileName);
+        } catch (IOException | InterruptedException e) {
+            LOGGER.error(e.getMessage());
+        }
+    }
 
     private static void getObjectSequence() {
         try (InputStream input = client.getInputStream()) {
@@ -55,7 +64,7 @@ public class Server {
             while (true) {
                 ObjectInputStream objInput = new ObjectInputStream(input);
                 // Если поместить в трай с ресурсами, то получим ошибку
-                // Как сделать правильно, чтобы поток закрывался
+                // Как сделать правильно, чтобы поток закрывался?
                 FileMessage obj = (FileMessage) objInput.readObject();
                 LOGGER.info(String.format("Received file %s part: %d data length: %d", obj.getName(), i++, obj.getData().length));
                 obj.writeData(OUT_PATH + obj.getName(), i != 1);
