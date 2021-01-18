@@ -7,6 +7,7 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Iterator;
@@ -18,7 +19,7 @@ public class NioServer {
   private final ServerSocketChannel serverChannel = ServerSocketChannel.open();
   private final Selector selector = Selector.open();
   private final ByteBuffer buffer = ByteBuffer.allocate(5);
-  private Path serverPath = Paths.get("serverDir");
+  private Path serverPath = Paths.get("./");
 
   public NioServer() throws IOException {
     serverChannel.bind(new InetSocketAddress(8189));
@@ -62,14 +63,26 @@ public class NioServer {
       }
       buffer.clear();
     }
-    String command = msg.toString().replaceAll("[\n|\r]", "");
-    if (command.equals("ls")) {
+
+    String[] command = msg.toString().replaceAll("[\n|\r]", "").split(" ");
+    if (command[0].equals("ls")) {
       String files = Files.list(serverPath)
               .map(path -> path.getFileName().toString())
-              .collect(Collectors.joining(", "));
-      files += "\n";
+              .collect(Collectors.joining("\n\r"));
+      files += "\n\r";
       channel.write(ByteBuffer.wrap(files.getBytes(StandardCharsets.UTF_8)));
+      }
+    else if (command[0].equals("cd")) {
+      Path newPath = serverPath.resolve(command[1]);
+      if (Files.exists(newPath)) {
+        serverPath = newPath;
+        channel.write(ByteBuffer.wrap(serverPath.toString().getBytes(StandardCharsets.UTF_8)));
+      } else {
+        channel.write(ByteBuffer.wrap((command[1] + " not exists").getBytes(StandardCharsets.UTF_8)));
+      }
+      channel.write(ByteBuffer.wrap("\n\r".getBytes(StandardCharsets.UTF_8)));
     }
+
   }
 
   private void handleAccept(SelectionKey key) throws IOException {
