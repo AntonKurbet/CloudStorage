@@ -137,7 +137,7 @@ public class NioServer {
 
     private byte[] doCat(String command) throws IOException {
         Path tmpPath = newPath.resolve(command);
-        if (Files.exists(tmpPath)) {
+        if (Files.exists(tmpPath) && Files.isRegularFile(tmpPath)) {
             return Files.readAllBytes(tmpPath);
         } else {
             return toBytes(command + " not exists");
@@ -146,7 +146,7 @@ public class NioServer {
 
     private byte[] doCd(String command)  {
         Path tmpPath = newPath.resolve(command);
-        if (Files.exists(tmpPath)) {
+        if (Files.exists(tmpPath) && Files.isDirectory(tmpPath)) {
             if (tmpPath.toAbsolutePath().normalize().startsWith(serverPath)) {
                 newPath = tmpPath.toAbsolutePath().normalize();
                 return getRelativePathBytes();
