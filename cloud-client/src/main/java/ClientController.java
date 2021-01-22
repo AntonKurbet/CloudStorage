@@ -24,15 +24,17 @@ public class ClientController implements Initializable {
     private static final Logger LOG = LoggerFactory.getLogger(ClientController.class);
     private static final int SEND_BUFFER_LENGTH = 50;
 
-    public ListView<String> listView;
+    public ListView<String> clientFilesListView;
+    public ListView<String> messageListView;
     private Path clientPath = Paths.get("./test_in").toAbsolutePath().normalize();
 
     private ObjectEncoderOutputStream os;
     private ObjectDecoderInputStream is;
 
     public void sendMessage(ActionEvent event) throws IOException {
-        String fileName = listView.getSelectionModel().getSelectedItem();
+        String fileName = clientFilesListView.getSelectionModel().getSelectedItem();
 
+        if ((fileName == null) || (fileName.isEmpty())) return;
         List<FileMessage> list = FileMessage.GenerateSequence(clientPath.resolve(fileName),SEND_BUFFER_LENGTH);
         for (FileMessage f: list) {
             os.writeObject(f);
@@ -60,8 +62,12 @@ public class ClientController implements Initializable {
             new Thread(() -> {
                 while (true) {
                     try {
-                        FileMessage message = (FileMessage) is.readObject();
-                        listView.getItems().add(message.toString());
+                        Object obj = is.readObject();
+                        if (obj.getClass().getName() == "TextMessage") {
+                            TextMessage message = (TextMessage) obj;
+                            messageListView.getItems().add(message.toString());
+                            LOG.debug(message.toString());
+                        }
                     } catch (Exception e) {
                         LOG.error("e = ", e);
                         break;
@@ -74,7 +80,7 @@ public class ClientController implements Initializable {
     }
 
     private void initListView() throws IOException {
-        listView.setItems(FXCollections.observableList(Files.list(clientPath).map(path -> path.getFileName().toString())
+        clientFilesListView.setItems(FXCollections.observableList(Files.list(clientPath).map(path -> path.getFileName().toString())
         .collect(Collectors.toList())));
     }
 }
