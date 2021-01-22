@@ -7,6 +7,8 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.LocalDate;
 
 import static java.lang.Thread.sleep;
@@ -67,7 +69,7 @@ public class Server {
                 // Как сделать правильно, чтобы поток закрывался?
                 FileMessage obj = (FileMessage) objInput.readObject();
                 LOGGER.info(String.format("Received file %s part: %d data length: %d", obj.getName(), i++, obj.getData().length));
-                obj.writeData(OUT_PATH + obj.getName(), i != 1);
+                obj.writeData(Paths.get(OUT_PATH + obj.getName()), i != 1);
                 if (obj.getEnd()) break;
             }
         } catch (IOException | ClassNotFoundException e) {

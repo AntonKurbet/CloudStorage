@@ -12,6 +12,9 @@ import io.netty.handler.codec.serialization.ObjectEncoder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.file.Path;
+import java.nio.file.Paths;
+
 public class NettyServer {
 
     private static final Logger LOG = LoggerFactory.getLogger(NettyServer.class);
@@ -25,7 +28,7 @@ public class NettyServer {
                     .channel(NioServerSocketChannel.class)
                     .childHandler(new ChannelInitializer<SocketChannel>() {
                         @Override
-                        protected void initChannel(SocketChannel channel) throws Exception {
+                        protected void initChannel(SocketChannel channel) {
                             channel.pipeline().addLast(
                                     new ObjectDecoder(ClassResolvers.cacheDisabled(null)),
                                     new ObjectEncoder(),

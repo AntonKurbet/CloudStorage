@@ -30,7 +30,7 @@ public class FileMessage implements Serializable {
             throws IOException {
         ArrayList<FileMessage> result = new ArrayList<>();
 
-            String name = path.toString();
+            String name = path.getFileName().toString();
             InputStream is = new FileInputStream(name);
             LocalDate dt = LocalDate.now();
             int read;
@@ -60,8 +60,8 @@ public class FileMessage implements Serializable {
         os.close();
     }
 
-    public void writeData(String dst, boolean append) throws IOException {
-        OutputStream os = new FileOutputStream(dst, append);
+    public void writeData(Path dst, boolean append) throws IOException {
+        OutputStream os = new FileOutputStream(dst.toString(), append);
         os.write(this.data);
         os.close();
     }
