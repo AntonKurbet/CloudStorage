@@ -12,9 +12,6 @@ import io.netty.handler.codec.serialization.ObjectEncoder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.nio.file.Path;
-import java.nio.file.Paths;
-
 public class NettyServer {
 
     private static final Logger LOG = LoggerFactory.getLogger(NettyServer.class);
@@ -36,7 +33,7 @@ public class NettyServer {
                         }
                     });
             ChannelFuture future = bootstrap.bind(8189).sync();
-            LOG.debug("server started on PORT = 8189!");
+            LOG.info("server started on PORT = 8189!");
             future.channel().closeFuture().sync(); // block
         } catch (InterruptedException e) {
             LOG.error("e=", e);

@@ -49,6 +49,7 @@ public class ClientController implements Initializable {
 
             try {
                 socket = new Socket("localhost", 8189);
+                LOG.info("Connected to server...");
             } catch (IOException e) {
                 LOG.error("e = ", e);
                 return;
@@ -66,7 +67,7 @@ public class ClientController implements Initializable {
                         if (obj.getClass().getName() == "TextMessage") {
                             TextMessage message = (TextMessage) obj;
                             messageListView.getItems().add(message.toString());
-                            LOG.debug(message.toString());
+                            LOG.info(message.toString());
                         }
                     } catch (Exception e) {
                         LOG.error("e = ", e);
