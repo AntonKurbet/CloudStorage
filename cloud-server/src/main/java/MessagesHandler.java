@@ -1,7 +1,5 @@
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -49,12 +47,24 @@ public class MessagesHandler extends SimpleChannelInboundHandler<ExchangeMessage
             case "ls": doLs((CommandMessage<List<String>>)msg);
                        break;
             case "cd": doCd((CommandMessage<Boolean>)msg);
-                break;
+                       break;
+            case "rm": doRm((CommandMessage<Boolean>)msg);
+                       break;
         }
         for (ChannelHandlerContext client : clients) {
             client.writeAndFlush(msg);
         }
-        LOG.info("Processed command " + msg.getCommand());
+        LOG.info(String.format("Processed command %s (%s)", msg.getCommand(), msg.getParam()));
+    }
+
+    private void doRm(CommandMessage<Boolean> msg) throws IOException {
+        Path tmpPath = newPath.resolve(msg.getParam());
+        if (Files.exists(tmpPath)) {
+            if (!Files.isDirectory(tmpPath)) {
+                Files.delete(tmpPath);
+                msg.setResult(true);
+            }
+        } else msg.setResult(false);
     }
 
     private void doCd(CommandMessage<Boolean> msg) {
