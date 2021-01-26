@@ -97,6 +97,8 @@ public class ClientController implements Initializable {
                 break;
             case "ls" : cmdObj = new CommandMessage<List<String>>("ls");
                 break;
+            case "rm" : cmdObj = new CommandMessage<Boolean>("rm",params);
+                break;
             default: return;
         }
 
@@ -106,7 +108,9 @@ public class ClientController implements Initializable {
 
     private void ProcessCommandResult(Object cmd) {
         switch (((CommandMessage)cmd).getCommand()) {
-            case "cd" : break;
+            case "cd" :
+            case "rm" :
+                        break;
             case "ls" : List<String> files = ((CommandMessage<List<String>>)cmd).getResult();
                         if (files != null) Platform.runLater(() -> {
                             serverFilesListView.setItems(FXCollections.observableList(files));
@@ -127,6 +131,18 @@ public class ClientController implements Initializable {
 
         try {
             sendCommand("cd",dirName.substring(2));
+            sendCommand("ls");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void deleteFile(ActionEvent actionEvent) {
+        String fileName = serverFilesListView.getSelectionModel().getSelectedItem();
+        if ((fileName == null) || (fileName.isEmpty()) || fileName.startsWith(">>")) return;
+
+        try {
+            sendCommand("rm",fileName);
             sendCommand("ls");
         } catch (IOException e) {
             e.printStackTrace();
