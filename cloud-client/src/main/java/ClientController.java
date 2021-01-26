@@ -12,6 +12,7 @@ import java.util.stream.Collectors;
 
 import io.netty.handler.codec.serialization.ObjectDecoderInputStream;
 import io.netty.handler.codec.serialization.ObjectEncoderOutputStream;
+import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.event.ActionEvent;
 import javafx.fxml.Initializable;
@@ -59,14 +60,14 @@ public class ClientController implements Initializable {
             os = new ObjectEncoderOutputStream(socket.getOutputStream());
             is = new ObjectDecoderInputStream(socket.getInputStream());
 
-            new Thread(() -> {
-                try {
-                    initListView();
-                    sendCommand("ls",null);
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
+            try {
+                initListView();
+                sendCommand("ls",null);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
 
+            new Thread(() -> {
                 while (true) {
                     try {
                         Object obj = is.readObject();
@@ -107,8 +108,9 @@ public class ClientController implements Initializable {
         switch (((CommandMessage)cmd).getCommand()) {
             case "cd" : break;
             case "ls" : List<String> files = ((CommandMessage<List<String>>)cmd).getResult();
-                        if (files != null)
+                        if (files != null) Platform.runLater(() -> {
                             serverFilesListView.setItems(FXCollections.observableList(files));
+                        });
                         break;
         }
     }

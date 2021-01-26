@@ -73,7 +73,8 @@ public class MessagesHandler extends SimpleChannelInboundHandler<ExchangeMessage
     }
 
     private void doLs(CommandMessage<List<String>> msg) throws IOException {
-        List<String> list = new ArrayList<>(Collections.singletonList(">>.."));
+        List<String> list = new ArrayList<>();
+        if (!newPath.equals(serverPath)) list.add(">>..");
 
         list.addAll(Files.list(newPath).map(path -> Files.isDirectory(path) ?
                 ">>" + path.getFileName().toString() : path.getFileName().toString())
