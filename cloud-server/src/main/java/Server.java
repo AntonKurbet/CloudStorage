@@ -10,6 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 import static java.lang.Thread.sleep;
 
@@ -43,17 +44,26 @@ public class Server {
     private static void getByProtocol() {
         try (InputStream input = client.getInputStream()) {
             DataInputStream byteInput = new DataInputStream(input);
+
             while (byteInput.readByte() != START_BYTE) sleep(100);
+
             int size = byteInput.readInt();
             byte[] nameBytes = new byte[size];
+
             byteInput.read(nameBytes);
+
             String fileName = new String(nameBytes, StandardCharsets.UTF_8);
+
             size = byteInput.readInt();
+
             byte[] dataBytes = new byte[size];
+
             byteInput.read(dataBytes);
             byteInput.close();
-            FileMessage obj = new FileMessage(fileName,dataBytes, LocalDate.now(),true);
+
+            FileMessage obj = new FileMessage(fileName,dataBytes, LocalDateTime.now(),true);
             LOGGER.info(String.format("Received object: %s",obj.toString()));
+
             obj.writeData(OUT_PATH + fileName);
         } catch (IOException | InterruptedException e) {
             LOGGER.error(e.getMessage());

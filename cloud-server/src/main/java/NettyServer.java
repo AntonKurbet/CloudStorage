@@ -29,7 +29,7 @@ public class NettyServer {
                             channel.pipeline().addLast(
                                     new ObjectDecoder(ClassResolvers.cacheDisabled(null)),
                                     new ObjectEncoder(),
-                                    new FileMessagesHandler());
+                                    new MessagesHandler());
                         }
                     });
             ChannelFuture future = bootstrap.bind(8189).sync();

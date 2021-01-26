@@ -1,25 +1,24 @@
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 
-public class FileMessage implements Serializable {
+public class FileMessage implements ExchangeMessage {
 
     private final String name;
     private final byte[] data;
-    private final LocalDate createAt;
     private boolean end;
-
+    private final LocalDateTime createAt;
 
     public FileMessage(Path path) throws IOException {
         name = path.getFileName().toString();
         data = Files.readAllBytes(path);
-        createAt = LocalDate.now();
+        createAt = LocalDateTime.now();
     }
 
-    public FileMessage(String name, byte[] data, LocalDate createAt, boolean end) {
+    public FileMessage(String name, byte[] data, LocalDateTime createAt, boolean end) {
         this.name = name;
         this.data = data;
         this.createAt = createAt;
@@ -32,7 +31,7 @@ public class FileMessage implements Serializable {
 
             String name = path.getFileName().toString();
             InputStream is = new FileInputStream(name);
-            LocalDate dt = LocalDate.now();
+            LocalDateTime dt = LocalDateTime.now();
             int read;
             byte[] buffer = new byte[partLength];
 
@@ -74,7 +73,7 @@ public class FileMessage implements Serializable {
         return data;
     }
 
-    public LocalDate getCreateAt() {
+    public LocalDateTime getCreateAt() {
         return createAt;
     }
 

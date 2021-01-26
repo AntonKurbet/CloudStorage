@@ -25,13 +25,13 @@ public class ClientController implements Initializable {
     private static final int SEND_BUFFER_LENGTH = 50;
 
     public ListView<String> clientFilesListView;
-    public ListView<String> messageListView;
+    public ListView<String> serverFilesListView;
     private Path clientPath = Paths.get("./test_in").toAbsolutePath().normalize();
 
     private ObjectEncoderOutputStream os;
     private ObjectDecoderInputStream is;
 
-    public void sendMessage(ActionEvent event) throws IOException {
+    public void sendFile(ActionEvent event) throws IOException {
         String fileName = clientFilesListView.getSelectionModel().getSelectedItem();
 
         if ((fileName == null) || (fileName.isEmpty())) return;
@@ -40,6 +40,7 @@ public class ClientController implements Initializable {
             os.writeObject(f);
             os.flush();
         }
+        sendCommand("ls");
     }
 
     @Override
@@ -58,16 +59,22 @@ public class ClientController implements Initializable {
             os = new ObjectEncoderOutputStream(socket.getOutputStream());
             is = new ObjectDecoderInputStream(socket.getInputStream());
 
-            initListView();
-
             new Thread(() -> {
+                try {
+                    initListView();
+                    sendCommand("ls",null);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+
                 while (true) {
                     try {
                         Object obj = is.readObject();
-                        if (obj.getClass().getName() == "TextMessage") {
-                            TextMessage message = (TextMessage) obj;
-                            messageListView.getItems().add(message.toString());
-                            LOG.info(message.toString());
+                        LOG.info("Received " + obj.getClass().getName());
+                        switch (obj.getClass().getName()) {
+                            case "TextMessage": LOG.info(obj.toString());
+                                                break;
+                            case "CommandMessage": ProcessCommandResult(obj);
                         }
                     } catch (Exception e) {
                         LOG.error("e = ", e);
@@ -80,8 +87,47 @@ public class ClientController implements Initializable {
         }
     }
 
+    public void sendCommand(String cmd) throws IOException {sendCommand(cmd, null);}
+
+    public void sendCommand(String cmd, String params) throws IOException {
+        Object cmdObj;
+        switch (cmd) {
+            case "cd" : cmdObj = new CommandMessage<Boolean>("cd",params);
+                break;
+            case "ls" : cmdObj = new CommandMessage<List<String>>("ls");
+                break;
+            default: return;
+        }
+
+        os.writeObject(cmdObj);
+        os.flush();
+    }
+
+    private void ProcessCommandResult(Object cmd) {
+        switch (((CommandMessage)cmd).getCommand()) {
+            case "cd" : break;
+            case "ls" : List<String> files = ((CommandMessage<List<String>>)cmd).getResult();
+                        if (files != null)
+                            serverFilesListView.setItems(FXCollections.observableList(files));
+                        break;
+        }
+    }
+
     private void initListView() throws IOException {
-        clientFilesListView.setItems(FXCollections.observableList(Files.list(clientPath).map(path -> path.getFileName().toString())
-        .collect(Collectors.toList())));
+        clientFilesListView.setItems(
+                FXCollections.observableList(Files.list(clientPath).map(path -> path.getFileName().toString())
+                             .collect(Collectors.toList())));
+    }
+
+    public void changeDir(ActionEvent actionEvent) {
+        String dirName = serverFilesListView.getSelectionModel().getSelectedItem();
+        if ((dirName == null) || (dirName.isEmpty()) || !dirName.startsWith(">>")) return;
+
+        try {
+            sendCommand("cd",dirName.substring(2));
+            sendCommand("ls");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 }

@@ -1,9 +1,8 @@
 import java.io.Serializable;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
-public class TextMessage implements Serializable {
+public class TextMessage implements ExchangeMessage {
     private final String text;
     private final LocalDateTime createAt;
 
