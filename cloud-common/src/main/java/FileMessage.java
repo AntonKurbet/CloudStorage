@@ -28,7 +28,7 @@ public class FileMessage implements ExchangeMessage {
         this.overwrite = overwrite;
     }
 
-    public static void sendByStream(Path path, int partLength, ObjectWriter os, Object stream ) throws IOException {
+    public static void sendByStream(Path path, int partLength, ObjectWriter writer, Object stream ) throws IOException {
         String name = path.getFileName().toString();
         boolean overwrite = true;
         LOG.info(String.format("Sending %s",name));
@@ -42,7 +42,7 @@ public class FileMessage implements ExchangeMessage {
                 if (read == -1) break;
                 byte[] data = new byte[read];
                 System.arraycopy(buffer, 0, data, 0, read);
-                os.writeObject(stream, new FileMessage(name, data, dt, overwrite));
+                writer.writeObject(stream, new FileMessage(name, data, dt, overwrite));
                 LOG.info(String.format("Sent %d bytes",read));
                 overwrite = false;
             }
@@ -64,10 +64,12 @@ public class FileMessage implements ExchangeMessage {
     public void writeData(Path dst) throws IOException {
         writeData(dst,overwrite);
     }
-    public void writeData(Path dst, boolean append) throws IOException {
-        OutputStream os = new FileOutputStream(dst.resolve(name).toString(), append);
-        os.write(this.data);
-        os.close();
+    public void writeData(Path dst, boolean append) {
+        try (OutputStream os = new FileOutputStream(dst.resolve(name).toString(), append)){
+            os.write(this.data);
+        } catch (IOException e) {
+            LOG.error(e.getMessage());
+        }
     }
 
     public String getName() {

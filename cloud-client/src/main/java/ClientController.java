@@ -16,15 +16,18 @@ import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.event.ActionEvent;
 import javafx.fxml.Initializable;
+import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
 import javafx.scene.input.MouseEvent;
+import javafx.scene.text.Font;
+import javafx.scene.text.FontWeight;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class ClientController implements Initializable, ObjectWriter {
 
     private static final Logger LOG = LoggerFactory.getLogger(ClientController.class);
-    private static final int SEND_BUFFER_LENGTH = 50;
+    private static final int SEND_BUFFER_LENGTH = 65536;
 
     public ListView<String> clientFilesListView;
     public ListView<String> serverFilesListView;
@@ -48,6 +51,18 @@ public class ClientController implements Initializable, ObjectWriter {
 
             os = new ObjectEncoderOutputStream(socket.getOutputStream());
             is = new ObjectDecoderInputStream(socket.getInputStream());
+
+//            serverFilesListView.setCellFactory(lv -> new ListCell<String>() {
+//                @Override
+//                protected void updateItem(String s, boolean empty) {
+//                    super.updateItem(s, empty);
+//                    if (s != null && s.startsWith(">>")) {
+//                        setFont(Font.font("Verdana", FontWeight.BOLD, 11));
+//                    } else {
+//                        setFont(Font.font("Verdana", FontWeight.NORMAL, 11));
+//                    }
+//                }
+//            });
 
             try {
                 updateClientListView();
@@ -172,4 +187,6 @@ public class ClientController implements Initializable, ObjectWriter {
             e.printStackTrace();
         }
     }
+
+
 }

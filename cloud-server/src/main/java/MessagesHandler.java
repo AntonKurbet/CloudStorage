@@ -15,7 +15,7 @@ import org.slf4j.LoggerFactory;
 public class MessagesHandler extends SimpleChannelInboundHandler<ExchangeMessage> implements ObjectWriter {
 
     private static final Logger LOG = LoggerFactory.getLogger(MessagesHandler.class);
-    private static final int SEND_BUFFER_LENGTH = 50;
+    private static final int SEND_BUFFER_LENGTH = 65536;
 
     private Path serverPath = Paths.get(System.getProperty("user.home") + "/tmp").toAbsolutePath().normalize();
     private Path newPath = serverPath;
