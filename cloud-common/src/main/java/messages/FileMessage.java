@@ -1,3 +1,5 @@
+package messages;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -6,6 +8,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.Arrays;
+
+import tools.*;
 
 public class FileMessage implements ExchangeMessage {
 
@@ -90,7 +94,7 @@ public class FileMessage implements ExchangeMessage {
 
     @Override
     public String toString() {
-        return "FileMessage{" +
+        return "messages.FileMessage{" +
                 "name='" + name + '\'' +
                 ", data=" + Arrays.toString(data) +
                 ", createAt=" + createAt +

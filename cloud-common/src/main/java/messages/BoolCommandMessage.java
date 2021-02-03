@@ -1,4 +1,6 @@
-import java.util.List;
+package messages;
+
+import tools.ServerCommand;
 
 public class BoolCommandMessage extends CommandMessage {
     private boolean result;

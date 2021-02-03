@@ -1,6 +1,10 @@
+package messages;
+
+import tools.ServerCommand;
+
 import java.time.LocalDateTime;
 
-public class CommandMessage implements ExchangeMessage{
+public class CommandMessage implements ExchangeMessage {
     private final ServerCommand command;
     private final String param;
     private final LocalDateTime createAt;

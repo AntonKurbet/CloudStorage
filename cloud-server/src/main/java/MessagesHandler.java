@@ -4,13 +4,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
-import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.stream.Collectors;
 
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
+import messages.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tools.ObjectWriter;
 
 public class MessagesHandler extends SimpleChannelInboundHandler<ExchangeMessage> implements ObjectWriter {
 
@@ -19,7 +20,7 @@ public class MessagesHandler extends SimpleChannelInboundHandler<ExchangeMessage
 
     private Path serverPath = Paths.get(System.getProperty("user.home") + "/tmp").toAbsolutePath().normalize();
     private Path newPath = serverPath;
-    private String userName = "Non Authorized";
+    private AuthMessage user = null;
 
     private static int cnt = 0;
 
@@ -35,6 +36,18 @@ public class MessagesHandler extends SimpleChannelInboundHandler<ExchangeMessage
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, ExchangeMessage msg) throws Exception {
         LOG.info("Received " + msg.getClass().getName());
+        if (msg instanceof AuthMessage) {
+            if (processAuthMessage((AuthMessage) msg)) {
+                user = (AuthMessage)msg;
+                ctx.writeAndFlush(new TextMessage("Authorized"));
+            }
+        }
+
+        if (user == null) {
+            LOG.warn("Non Authorized user");
+            return;
+        }
+
         if (msg instanceof FileMessage) {
             processFileMessage((FileMessage) msg);
             ctx.writeAndFlush(new TextMessage(String.format("Received %s part",((FileMessage)msg).getName())));
@@ -44,6 +57,11 @@ public class MessagesHandler extends SimpleChannelInboundHandler<ExchangeMessage
         } else if (msg instanceof RequestFileMessage) {
             FileMessage.sendByStream(newPath.resolve(((RequestFileMessage)msg).getParam()), SEND_BUFFER_LENGTH, this, ctx);
         }
+    }
+
+    private boolean processAuthMessage(AuthMessage msg) {
+        //TODO: Check Authorization
+        return (msg.getLogin() == "cloud_user" && msg.getPasswordHash() == "Abc12#".hashCode());
     }
 
     private void processCommandMessage(CommandMessage msg) throws IOException {

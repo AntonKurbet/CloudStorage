@@ -16,13 +16,13 @@ import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.event.ActionEvent;
 import javafx.fxml.Initializable;
-import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
 import javafx.scene.input.MouseEvent;
-import javafx.scene.text.Font;
-import javafx.scene.text.FontWeight;
+import messages.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tools.ObjectWriter;
+import tools.ServerCommand;
 
 public class ClientController implements Initializable, ObjectWriter {
 
@@ -65,8 +65,10 @@ public class ClientController implements Initializable, ObjectWriter {
 //            });
 
             try {
+                //TODO: Post Authorization
+                sendCommand(ServerCommand.AUTH, new String[]{"cloud_user", new Integer("Abc12#".hashCode()).toString()});
                 updateClientListView();
-                sendCommand(ServerCommand.LS,null);
+                sendCommand(ServerCommand.LS);
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -95,19 +97,22 @@ public class ClientController implements Initializable, ObjectWriter {
         }
     }
 
-    public void sendCommand(ServerCommand cmd) throws IOException {sendCommand(cmd, null);}
+    public void sendCommand(ServerCommand cmd) throws IOException {sendCommand(cmd, "");}
 
-    public void sendCommand(ServerCommand cmd, String params) throws IOException {
+    public void sendCommand(ServerCommand cmd, String param) throws IOException {sendCommand(cmd, new String[]{param});}
+
+    public void sendCommand(ServerCommand cmd, String[] params) throws IOException {
         Object cmdObj;
         switch (cmd) {
-            case CD : cmdObj = new BoolCommandMessage(ServerCommand.CD,params);
+            case CD : cmdObj = new BoolCommandMessage(ServerCommand.CD,params[0]);
                 break;
             case LS : cmdObj = new ListCommandMessage(ServerCommand.LS);
                 break;
-            case RM : cmdObj = new BoolCommandMessage(ServerCommand.RM,params);
+            case RM : cmdObj = new BoolCommandMessage(ServerCommand.RM,params[0]);
                 break;
-            case GET: cmdObj = new RequestFileMessage(ServerCommand.GET,params);
+            case GET: cmdObj = new RequestFileMessage(ServerCommand.GET,params[0]);
                 break;
+            case AUTH:cmdObj = new AuthMessage(params[0],Integer.parseInt(params[1]));
             default: return;
         }
 

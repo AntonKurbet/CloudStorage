@@ -1,3 +1,7 @@
+package messages;
+
+import tools.ServerCommand;
+
 import java.util.List;
 
 public class ListCommandMessage extends CommandMessage {
