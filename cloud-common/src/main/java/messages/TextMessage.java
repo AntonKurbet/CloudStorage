@@ -1,4 +1,5 @@
-import java.io.Serializable;
+package messages;
+
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 

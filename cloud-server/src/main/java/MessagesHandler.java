@@ -4,60 +4,81 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
-import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.stream.Collectors;
 
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
+import messages.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tools.ObjectWriter;
 
-public class MessagesHandler extends SimpleChannelInboundHandler<ExchangeMessage> {
+public class MessagesHandler extends SimpleChannelInboundHandler<ExchangeMessage> implements ObjectWriter {
 
-    private static final ConcurrentLinkedDeque<ChannelHandlerContext> clients = new ConcurrentLinkedDeque<>();
     private static final Logger LOG = LoggerFactory.getLogger(MessagesHandler.class);
+    private static final int SEND_BUFFER_LENGTH = 65536;
 
     private Path serverPath = Paths.get(System.getProperty("user.home") + "/tmp").toAbsolutePath().normalize();
     private Path newPath = serverPath;
-    private static HashSet<String> processing = new HashSet<>();
+    private AuthMessage user = null;
 
     private static int cnt = 0;
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) {
-        clients.add(ctx);
-        cnt++;
         LOG.info("current path is " + serverPath);
+    }
+
+    public void writeObject(Object stream, Object obj) {
+        ((ChannelHandlerContext)stream).writeAndFlush(obj);
     }
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, ExchangeMessage msg) throws Exception {
         LOG.info("Received " + msg.getClass().getName());
-        switch (msg.getClass().getName()) {
-            case "FileMessage" : processFileMessage((FileMessage) msg);
-                                 break;
-            case "CommandMessage": processCommandMessage((CommandMessage) msg);
-
-
+        if (msg instanceof AuthMessage) {
+            if (processAuthMessage((AuthMessage) msg)) {
+                user = (AuthMessage)msg;
+                ctx.writeAndFlush(new TextMessage("Authorized"));
+            }
         }
+
+        if (user == null) {
+            LOG.warn("Non Authorized user");
+            return;
+        }
+
+        if (msg instanceof FileMessage) {
+            processFileMessage((FileMessage) msg);
+            ctx.writeAndFlush(new TextMessage(String.format("Received %s part",((FileMessage)msg).getName())));
+        } else if (msg instanceof ListCommandMessage || msg instanceof BoolCommandMessage) {
+            processCommandMessage((CommandMessage) msg);
+            ctx.writeAndFlush(msg);
+        } else if (msg instanceof RequestFileMessage) {
+            FileMessage.sendByStream(newPath.resolve(((RequestFileMessage)msg).getParam()), SEND_BUFFER_LENGTH, this, ctx);
+        }
+    }
+
+    private boolean processAuthMessage(AuthMessage msg) {
+        //TODO: Check Authorization
+        return (msg.getLogin() == "cloud_user" && msg.getPasswordHash() == "Abc12#".hashCode());
     }
 
     private void processCommandMessage(CommandMessage msg) throws IOException {
         switch (msg.getCommand()) {
-            case "ls": doLs((CommandMessage<List<String>>)msg);
-                       break;
-            case "cd": doCd((CommandMessage<Boolean>)msg);
-                       break;
-            case "rm": doRm((CommandMessage<Boolean>)msg);
-                       break;
-        }
-        for (ChannelHandlerContext client : clients) {
-            client.writeAndFlush(msg);
+            case LS: doLs((ListCommandMessage)msg);
+                     break;
+            case CD: doCd((BoolCommandMessage)msg);
+                     break;
+            case RM: doRm((BoolCommandMessage)msg);
+                     break;
+            case GET: break; //Already done
+            default: LOG.warn("Unsupported command");
         }
         LOG.info(String.format("Processed command %s (%s)", msg.getCommand(), msg.getParam()));
     }
 
-    private void doRm(CommandMessage<Boolean> msg) throws IOException {
+    private void doRm(BoolCommandMessage msg) throws IOException {
         Path tmpPath = newPath.resolve(msg.getParam());
         if (Files.exists(tmpPath)) {
             if (!Files.isDirectory(tmpPath)) {
@@ -67,7 +88,7 @@ public class MessagesHandler extends SimpleChannelInboundHandler<ExchangeMessage
         } else msg.setResult(false);
     }
 
-    private void doCd(CommandMessage<Boolean> msg) {
+    private void doCd(BoolCommandMessage msg) {
         Path tmpPath = newPath.resolve(msg.getParam());
         if (Files.exists(tmpPath) && Files.isDirectory(tmpPath)) {
             if (tmpPath.toAbsolutePath().normalize().startsWith(serverPath)) {
@@ -82,7 +103,7 @@ public class MessagesHandler extends SimpleChannelInboundHandler<ExchangeMessage
         LOG.info("current path is " + newPath);
     }
 
-    private void doLs(CommandMessage<List<String>> msg) throws IOException {
+    private void doLs(ListCommandMessage msg) throws IOException {
         List<String> list = new ArrayList<>();
         if (!newPath.equals(serverPath)) list.add(">>..");
 
@@ -93,26 +114,15 @@ public class MessagesHandler extends SimpleChannelInboundHandler<ExchangeMessage
     }
 
     private void processFileMessage(FileMessage msg) throws IOException {
-        boolean append = processing.contains(msg.getName());
-        if (!append) {
-            processing.add(msg.getName());
+        if (msg.getOverwrite())
             LOG.debug("New file: " + msg.getName());
-        }
-        msg.writeData(newPath.resolve(msg.getName()), append);
+
+        msg.writeData(newPath.resolve(msg.getName()));
         LOG.debug("Writing " + msg.getName());
-
-        if (msg.getEnd()) {
-            processing.remove(msg.getName());
-            LOG.debug("Finished " + msg.getName());
-        }
-
-        for (ChannelHandlerContext client : clients) {
-            client.writeAndFlush(new TextMessage(String.format("Received %s part",msg.getName())));
-        }
     }
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) {
-        clients.remove(ctx);
+        //
     }
 }

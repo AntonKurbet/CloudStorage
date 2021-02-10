@@ -17,13 +17,17 @@ import javafx.collections.FXCollections;
 import javafx.event.ActionEvent;
 import javafx.fxml.Initializable;
 import javafx.scene.control.ListView;
+import javafx.scene.input.MouseEvent;
+import messages.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tools.ObjectWriter;
+import tools.ServerCommand;
 
-public class ClientController implements Initializable {
+public class ClientController implements Initializable, ObjectWriter {
 
     private static final Logger LOG = LoggerFactory.getLogger(ClientController.class);
-    private static final int SEND_BUFFER_LENGTH = 50;
+    private static final int SEND_BUFFER_LENGTH = 65536;
 
     public ListView<String> clientFilesListView;
     public ListView<String> serverFilesListView;
@@ -31,18 +35,6 @@ public class ClientController implements Initializable {
 
     private ObjectEncoderOutputStream os;
     private ObjectDecoderInputStream is;
-
-    public void sendFile(ActionEvent event) throws IOException {
-        String fileName = clientFilesListView.getSelectionModel().getSelectedItem();
-
-        if ((fileName == null) || (fileName.isEmpty())) return;
-        List<FileMessage> list = FileMessage.GenerateSequence(clientPath.resolve(fileName),SEND_BUFFER_LENGTH);
-        for (FileMessage f: list) {
-            os.writeObject(f);
-            os.flush();
-        }
-        sendCommand("ls");
-    }
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
@@ -60,9 +52,23 @@ public class ClientController implements Initializable {
             os = new ObjectEncoderOutputStream(socket.getOutputStream());
             is = new ObjectDecoderInputStream(socket.getInputStream());
 
+//            serverFilesListView.setCellFactory(lv -> new ListCell<String>() {
+//                @Override
+//                protected void updateItem(String s, boolean empty) {
+//                    super.updateItem(s, empty);
+//                    if (s != null && s.startsWith(">>")) {
+//                        setFont(Font.font("Verdana", FontWeight.BOLD, 11));
+//                    } else {
+//                        setFont(Font.font("Verdana", FontWeight.NORMAL, 11));
+//                    }
+//                }
+//            });
+
             try {
-                initListView();
-                sendCommand("ls",null);
+                //TODO: Post Authorization
+                sendCommand(ServerCommand.AUTH, new String[]{"cloud_user", new Integer("Abc12#".hashCode()).toString()});
+                updateClientListView();
+                sendCommand(ServerCommand.LS);
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -72,10 +78,13 @@ public class ClientController implements Initializable {
                     try {
                         Object obj = is.readObject();
                         LOG.info("Received " + obj.getClass().getName());
-                        switch (obj.getClass().getName()) {
-                            case "TextMessage": LOG.info(obj.toString());
-                                                break;
-                            case "CommandMessage": ProcessCommandResult(obj);
+                        if (obj instanceof TextMessage) {
+                            LOG.info(obj.toString());
+                        } else if (obj instanceof CommandMessage) {
+                            ProcessCommandResult((CommandMessage)obj);
+                        } else if (obj instanceof FileMessage) {
+                            ((FileMessage) obj).writeData(clientPath);
+                            updateClientListView();
                         }
                     } catch (Exception e) {
                         LOG.error("e = ", e);
@@ -88,17 +97,22 @@ public class ClientController implements Initializable {
         }
     }
 
-    public void sendCommand(String cmd) throws IOException {sendCommand(cmd, null);}
+    public void sendCommand(ServerCommand cmd) throws IOException {sendCommand(cmd, "");}
 
-    public void sendCommand(String cmd, String params) throws IOException {
+    public void sendCommand(ServerCommand cmd, String param) throws IOException {sendCommand(cmd, new String[]{param});}
+
+    public void sendCommand(ServerCommand cmd, String[] params) throws IOException {
         Object cmdObj;
         switch (cmd) {
-            case "cd" : cmdObj = new CommandMessage<Boolean>("cd",params);
+            case CD : cmdObj = new BoolCommandMessage(ServerCommand.CD,params[0]);
                 break;
-            case "ls" : cmdObj = new CommandMessage<List<String>>("ls");
+            case LS : cmdObj = new ListCommandMessage(ServerCommand.LS);
                 break;
-            case "rm" : cmdObj = new CommandMessage<Boolean>("rm",params);
+            case RM : cmdObj = new BoolCommandMessage(ServerCommand.RM,params[0]);
                 break;
+            case GET: cmdObj = new RequestFileMessage(ServerCommand.GET,params[0]);
+                break;
+            case AUTH:cmdObj = new AuthMessage(params[0],Integer.parseInt(params[1]));
             default: return;
         }
 
@@ -106,35 +120,53 @@ public class ClientController implements Initializable {
         os.flush();
     }
 
-    private void ProcessCommandResult(Object cmd) {
-        switch (((CommandMessage)cmd).getCommand()) {
-            case "cd" :
-            case "rm" :
-                        break;
-            case "ls" : List<String> files = ((CommandMessage<List<String>>)cmd).getResult();
-                        if (files != null) Platform.runLater(() -> {
-                            serverFilesListView.setItems(FXCollections.observableList(files));
-                        });
+    private void ProcessCommandResult(CommandMessage cmd) {
+        switch (cmd.getCommand()) {
+            case CD :
+            case RM :
+            case GET: break;
+            case LS : List<String> files = ((ListCommandMessage)cmd).getResult();
+                        if (files != null) Platform.runLater(() ->
+                                serverFilesListView.setItems(FXCollections.observableList(files)));
                         break;
         }
     }
 
-    private void initListView() throws IOException {
-        clientFilesListView.setItems(
-                FXCollections.observableList(Files.list(clientPath).map(path -> path.getFileName().toString())
-                             .collect(Collectors.toList())));
+    private void updateClientListView() throws IOException {
+        Platform.runLater(() -> {
+            try {
+                clientFilesListView.setItems(
+                        FXCollections.observableList(Files.list(clientPath)
+                                .map(path -> path.getFileName().toString())
+                                .collect(Collectors.toList())));
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        });
     }
 
-    public void changeDir(ActionEvent actionEvent) {
-        String dirName = serverFilesListView.getSelectionModel().getSelectedItem();
-        if ((dirName == null) || (dirName.isEmpty()) || !dirName.startsWith(">>")) return;
-
+    public void writeObject(Object stream, Object obj)  {
         try {
-            sendCommand("cd",dirName.substring(2));
-            sendCommand("ls");
+            ((ObjectEncoderOutputStream)stream).writeObject(obj);
+            ((ObjectEncoderOutputStream)stream).flush();
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    public void uploadFile(ActionEvent event) throws IOException {
+        String fileName = clientFilesListView.getSelectionModel().getSelectedItem();
+
+        if ((fileName == null) || (fileName.isEmpty())) return;
+        FileMessage.sendByStream(clientPath.resolve(fileName),SEND_BUFFER_LENGTH,this, os);
+        sendCommand(ServerCommand.LS);
+    }
+
+    public void downloadFile(ActionEvent actionEvent) throws IOException {
+        String fileName = serverFilesListView.getSelectionModel().getSelectedItem();
+
+        if ((fileName == null) || (fileName.isEmpty())) return;
+        sendCommand(ServerCommand.GET,fileName);
     }
 
     public void deleteFile(ActionEvent actionEvent) {
@@ -142,10 +174,24 @@ public class ClientController implements Initializable {
         if ((fileName == null) || (fileName.isEmpty()) || fileName.startsWith(">>")) return;
 
         try {
-            sendCommand("rm",fileName);
-            sendCommand("ls");
+            sendCommand(ServerCommand.RM,fileName);
+            sendCommand(ServerCommand.LS);
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
+
+    public void serverFilesOnMouseClicked(MouseEvent mouseEvent) {
+        String dirName = serverFilesListView.getSelectionModel().getSelectedItem();
+        if ((dirName == null) || (dirName.isEmpty()) || !dirName.startsWith(">>")) return;
+
+        try {
+            sendCommand(ServerCommand.CD,dirName.substring(2));
+            sendCommand(ServerCommand.LS);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+
 }

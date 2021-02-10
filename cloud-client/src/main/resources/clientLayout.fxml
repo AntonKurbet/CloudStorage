@@ -1,12 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
+<?import java.lang.*?>
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
 
-<AnchorPane prefHeight="400.0" prefWidth="600.0" xmlns="http://javafx.com/javafx/10.0.2-internal" xmlns:fx="http://javafx.com/fxml/1" fx:controller="ClientController">
-   <ListView fx:id="clientFilesListView" layoutX="350.0" layoutY="15.0" prefHeight="370.0" prefWidth="230.0" />
-   <ListView fx:id="serverFilesListView" layoutX="15.0" layoutY="15.0" prefHeight="370.0" prefWidth="230.0" />
-   <Button layoutX="253.0" layoutY="260.0" mnemonicParsing="false" onAction="#deleteFile" prefHeight="35.0" prefWidth="88.0" text="Удалить" />
-   <Button layoutX="253.0" layoutY="305.0" mnemonicParsing="false" onAction="#changeDir" prefHeight="35.0" prefWidth="88.0" text="В папку" />
-   <Button layoutX="253.0" layoutY="350.0" mnemonicParsing="false" onAction="#sendFile" prefHeight="35.0" prefWidth="88.0" text="Отправить" />
+<AnchorPane maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="400.0" prefWidth="600.0" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1" fx:controller="ClientController">
+   <children>
+      <Pane layoutX="15.0" layoutY="15.0" prefHeight="370.0" prefWidth="570.0">
+         <children>
+            <Label layoutX="0.0" layoutY="0.0" prefHeight="24.0" prefWidth="230.0" text="Client files" textAlignment="CENTER" />
+            <Label layoutX="330.0" layoutY="0.0" prefHeight="24.0" prefWidth="230.0" text="Sever files" textAlignment="CENTER" />
+            <ListView fx:id="clientFilesListView" layoutY="27.0" prefHeight="343.0" prefWidth="230.0" />
+            <ListView fx:id="serverFilesListView" layoutX="327.0" layoutY="27.0" onMouseClicked="#serverFilesOnMouseClicked" prefHeight="343.0" prefWidth="244.0" />
+            <Button layoutX="237.0" layoutY="335.0" mnemonicParsing="false" onAction="#uploadFile" prefHeight="35.0" prefWidth="82.0" text="&gt;&gt;" />
+            <Button layoutX="237.0" layoutY="290.0" mnemonicParsing="false" onAction="#downloadFile" prefHeight="35.0" prefWidth="82.0" text="&lt;&lt;" />
+         </children>
+      </Pane>
+   </children>
 </AnchorPane>
