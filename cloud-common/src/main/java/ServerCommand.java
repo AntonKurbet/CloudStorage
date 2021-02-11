@@ -1,3 +1,3 @@
 public enum ServerCommand {
-    LS,CD,RM,GET
+    LS, CD, RM, AUTH, GET
 }

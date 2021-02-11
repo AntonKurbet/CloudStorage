@@ -51,7 +51,7 @@ public class ClientController implements Initializable {
 
             try {
                 refreshClientListView();
-                sendCommand(ServerCommand.LS, null);
+                sendCommand(ServerCommand.AUTH,new String[]{"user01","Pass0!"});
             } catch (IOException e) {
                 LOG.error(e.getMessage());
             }
@@ -90,19 +90,26 @@ public class ClientController implements Initializable {
     }
 
     public void sendCommand(ServerCommand cmd) throws IOException {
-        sendCommand(cmd, null);
+        sendCommand(cmd, (String) null);
     }
 
     public void sendCommand(ServerCommand cmd, String params) throws IOException {
+        sendCommand(cmd,new String[]{params});
+    }
+
+    public void sendCommand(ServerCommand cmd, String[] params) throws IOException {
         Object cmdObj;
         switch (cmd) {
             case CD:
             case RM:
             case GET:
-                cmdObj = new SimpleCommandMessage(cmd, params);
+                cmdObj = new SimpleCommandMessage(cmd, params[0]);
                 break;
             case LS:
                 cmdObj = new FileListCommandMessage(cmd);
+                break;
+            case AUTH:
+                cmdObj = new AuthorizationMessage(params[0],params[1]);
                 break;
             default:
                 return;
@@ -111,7 +118,7 @@ public class ClientController implements Initializable {
         os.flush();
     }
 
-    private void ProcessCommandResult(Object cmd) {
+    private void ProcessCommandResult(Object cmd) throws IOException {
         switch (((CommandMessage) cmd).getCommand()) {
             case CD:
             case RM:
@@ -122,6 +129,11 @@ public class ClientController implements Initializable {
                     serverFilesListView.setItems(FXCollections.observableList(files));
                 });
                 break;
+            case AUTH:
+                if (!((AuthorizationMessage) cmd).getResult()) {
+                    LOG.info("Authorization failed");
+                    return;
+                } sendCommand(ServerCommand.LS);
         }
     }
 

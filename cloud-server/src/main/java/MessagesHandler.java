@@ -1,11 +1,8 @@
-
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
-import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.stream.Collectors;
 
 import io.netty.channel.ChannelHandlerContext;
@@ -15,7 +12,6 @@ import org.slf4j.LoggerFactory;
 
 public class MessagesHandler extends SimpleChannelInboundHandler<ExchangeMessage> {
 
-    private static final ConcurrentLinkedDeque<ChannelHandlerContext> clients = new ConcurrentLinkedDeque<>();
     private static final Logger LOG = LoggerFactory.getLogger(MessagesHandler.class);
     private static final int SEND_BUFFER_LENGTH = 50;
 
@@ -23,12 +19,10 @@ public class MessagesHandler extends SimpleChannelInboundHandler<ExchangeMessage
     private Path newPath = serverPath;
     private static HashSet<String> processing = new HashSet<>();
 
-    private static int cnt = 0;
+    private boolean authorized = false;
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) {
-        clients.add(ctx);
-        cnt++;
         LOG.info("current path is " + serverPath);
     }
 
@@ -36,13 +30,18 @@ public class MessagesHandler extends SimpleChannelInboundHandler<ExchangeMessage
     protected void channelRead0(ChannelHandlerContext ctx, ExchangeMessage msg) throws Exception {
         LOG.info("Received " + msg.getClass().getName());
         if (msg instanceof FileMessage) {
-            processFileMessage((FileMessage) msg);
+            processFileMessage((FileMessage) msg, ctx);
         } else if (msg instanceof CommandMessage) {
             processCommandMessage((CommandMessage) msg, ctx);
         }
     }
 
     private void processCommandMessage(CommandMessage msg, ChannelHandlerContext ctx) throws IOException {
+        if (!authorized && msg.getCommand() != ServerCommand.AUTH) {
+            LOG.info("Not authorized");
+            return;
+        }
+
         switch (msg.getCommand()) {
             case LS:
                 doLs((FileListCommandMessage) msg);
@@ -55,11 +54,19 @@ public class MessagesHandler extends SimpleChannelInboundHandler<ExchangeMessage
                 break;
             case GET:
                 doGet((SimpleCommandMessage) msg, ctx);
+                break;
+            case AUTH:
+                doAuthorization((AuthorizationMessage)msg);
         }
-        for (ChannelHandlerContext client : clients) {
-            client.writeAndFlush(msg);
-        }
+        ctx.writeAndFlush(msg);
         LOG.info(String.format("Processed command %s (%s)", msg.getCommand(), msg.getParam()));
+    }
+
+    private void doAuthorization(AuthorizationMessage msg) {
+        if (msg.getLogin().equals("user01") && msg.getPassword().equals("Pass0!")) {
+            msg.setResult(true);
+            this.authorized = true;
+        }
     }
 
     private void doGet(SimpleCommandMessage msg, ChannelHandlerContext ctx) {
@@ -105,17 +112,14 @@ public class MessagesHandler extends SimpleChannelInboundHandler<ExchangeMessage
         msg.setResult(list);
     }
 
-    private void processFileMessage(FileMessage msg) throws IOException {
+    private void processFileMessage(FileMessage msg, ChannelHandlerContext ctx) throws IOException {
         LOG.debug("Writing " + msg.getName());
         msg.writeData(newPath.resolve(msg.getName()).toString());
-
-        for (ChannelHandlerContext client : clients) {
-            client.writeAndFlush(new TextMessage(String.format("Received %s part", msg.getName())));
-        }
+        ctx.writeAndFlush(new TextMessage(String.format("Received %s part", msg.getName())));
     }
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) {
-        clients.remove(ctx);
+//
     }
 }
