@@ -83,9 +83,9 @@ public class MessagesHandler extends SimpleChannelInboundHandler<ExchangeMessage
         if (Files.exists(tmpPath)) {
             if (!Files.isDirectory(tmpPath)) {
                 Files.delete(tmpPath);
-                msg.setResult(true);
+                msg.setResult("");
             }
-        } else msg.setResult(false);
+        } else msg.setResult("File not exists");
     }
 
     private void doCd(SimpleCommandMessage msg) {
@@ -93,22 +93,17 @@ public class MessagesHandler extends SimpleChannelInboundHandler<ExchangeMessage
         if (Files.exists(tmpPath) && Files.isDirectory(tmpPath)) {
             if (tmpPath.toAbsolutePath().normalize().startsWith(serverPath)) {
                 newPath = tmpPath.toAbsolutePath().normalize();
-                msg.setResult(true);
+                msg.setResult(newPath.toString().substring(serverPath.toString().length()));
             } else
-                msg.setResult(false);
+                msg.setResult("Can't move there");
         } else {
-            msg.setResult(false);
+            msg.setResult("Not a directory");
         }
         LOG.info("current path is " + newPath);
     }
 
     private void doLs(FileListCommandMessage msg) throws IOException {
-        List<String> list = new ArrayList<>();
-        if (!newPath.equals(serverPath)) list.add(">>..");
-
-        list.addAll(Files.list(newPath).map(path -> Files.isDirectory(path) ?
-                ">>" + path.getFileName().toString() : path.getFileName().toString())
-                .collect(Collectors.toList()));
+        List<FileInfo> list = new ArrayList<>(Files.list(newPath).map(FileInfo::new).collect(Collectors.toList()));
         msg.setResult(list);
     }
 

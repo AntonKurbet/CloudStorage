@@ -10,28 +10,35 @@ import java.util.List;
 import java.util.ResourceBundle;
 import java.util.stream.Collectors;
 
-import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.serialization.ObjectDecoderInputStream;
 import io.netty.handler.codec.serialization.ObjectEncoderOutputStream;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.event.ActionEvent;
+import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.control.ListView;
+import javafx.scene.layout.VBox;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class ClientController implements Initializable {
 
     private static final Logger LOG = LoggerFactory.getLogger(ClientController.class);
-    private static final int SEND_BUFFER_LENGTH = 50;
+    private static final int SEND_BUFFER_LENGTH = 65535;
 
-    public ListView<String> clientFilesListView;
-    public ListView<String> serverFilesListView;
     private Path clientPath = Paths.get("./test_in").toAbsolutePath().normalize();
 
     private ObjectEncoderOutputStream os;
     private ObjectDecoderInputStream is;
+
+    @FXML
+    VBox localFilesPanel, remoteFilesPanel;
+
+    private ClientPanelController localPC;
+    private ServerPanelController remotePC;
+
+    private boolean connected;
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
@@ -41,6 +48,7 @@ public class ClientController implements Initializable {
             try {
                 socket = new Socket("localhost", 8189);
                 LOG.info("Connected to server...");
+                connected = true;
             } catch (IOException e) {
                 LOG.error("e = ", e);
                 return;
@@ -51,7 +59,12 @@ public class ClientController implements Initializable {
 
             try {
                 refreshClientListView();
-                sendCommand(ServerCommand.AUTH,new String[]{"user01","Pass0!"});
+                sendCommand(ServerCommand.AUTH, new String[]{"user01", "Pass0!"});
+
+                localPC = (ClientPanelController) localFilesPanel.getProperties().get("controller");
+                remotePC = (ServerPanelController) remoteFilesPanel.getProperties().get("controller");
+                localPC.setMainController(this);
+                remotePC.setMainController(this);
             } catch (IOException e) {
                 LOG.error(e.getMessage());
             }
@@ -94,7 +107,7 @@ public class ClientController implements Initializable {
     }
 
     public void sendCommand(ServerCommand cmd, String params) throws IOException {
-        sendCommand(cmd,new String[]{params});
+        sendCommand(cmd, new String[]{params});
     }
 
     public void sendCommand(ServerCommand cmd, String[] params) throws IOException {
@@ -109,7 +122,7 @@ public class ClientController implements Initializable {
                 cmdObj = new FileListCommandMessage(cmd);
                 break;
             case AUTH:
-                cmdObj = new AuthorizationMessage(params[0],params[1]);
+                cmdObj = new AuthorizationMessage(params[0], params[1]);
                 break;
             default:
                 return;
@@ -121,73 +134,83 @@ public class ClientController implements Initializable {
     private void ProcessCommandResult(Object cmd) throws IOException {
         switch (((CommandMessage) cmd).getCommand()) {
             case CD:
+                String path = ((SimpleCommandMessage) cmd).getResult();
+                if (!path.isEmpty()) remotePC.setPathFieldText(path);
             case RM:
                 break;
             case LS:
-                List<String> files = ((FileListCommandMessage) cmd).getResult();
+                List<FileInfo> files = ((FileListCommandMessage) cmd).getResult();
                 if (files != null) Platform.runLater(() -> {
-                    serverFilesListView.setItems(FXCollections.observableList(files));
+                    remotePC.setFiles(files);
+                    remotePC.updateList();
                 });
                 break;
             case AUTH:
                 if (!((AuthorizationMessage) cmd).getResult()) {
                     LOG.info("Authorization failed");
                     return;
-                } sendCommand(ServerCommand.LS);
+                }
+                sendCommand(ServerCommand.LS);
         }
     }
 
     private void refreshClientListView() {
-        Platform.runLater(() -> {
-            try {
-                clientFilesListView.setItems(
-                        FXCollections.observableList(Files.list(clientPath).map(path -> path.getFileName().toString())
-                                .collect(Collectors.toList())));
-            } catch (IOException e) {
-                LOG.error(e.getMessage());
-            }
-        });
+        Platform.runLater(() -> localPC.updateList(clientPath));
     }
 
-    public void changeDir(ActionEvent actionEvent) {
-        String dirName = serverFilesListView.getSelectionModel().getSelectedItem();
-        if ((dirName == null) || (dirName.isEmpty()) || !dirName.startsWith(">>")) return;
+//    public void changeDir(ActionEvent actionEvent) {
+//        FileInfo dir = remotePC.getSelectedItem();
+//        if (dir.getType() != FileInfo.FileType.DIR) return;
+//
+//        try {
+//            sendCommand(ServerCommand.CD, dir.getName());
+//            sendCommand(ServerCommand.LS);
+//        } catch (IOException e) {
+//            LOG.error(e.getMessage());
+//        }
+//    }
 
-        try {
-            sendCommand(ServerCommand.CD, dirName.substring(2));
-            sendCommand(ServerCommand.LS);
-        } catch (IOException e) {
-            LOG.error(e.getMessage());
-        }
+    public void exitOnAction(ActionEvent actionEvent) {
+        connected = false;
+        Platform.runLater(() -> System.exit(0));
     }
 
-    public void deleteFile(ActionEvent actionEvent) {
-        String fileName = serverFilesListView.getSelectionModel().getSelectedItem();
-        if ((fileName == null) || (fileName.isEmpty()) || fileName.startsWith(">>")) return;
-
-        try {
-            sendCommand(ServerCommand.RM, fileName);
-            sendCommand(ServerCommand.LS);
-        } catch (IOException e) {
-            LOG.error(e.getMessage());
-        }
+    public void authorizeOnAction(ActionEvent actionEvent) {
+//TODO:
     }
 
-    public void sendFile(ActionEvent event) throws IOException {
-        String fileName = clientFilesListView.getSelectionModel().getSelectedItem();
-
-        if ((fileName == null) || (fileName.isEmpty())) return;
-
-        FileMessage.sendByStream(clientPath.resolve(fileName), SEND_BUFFER_LENGTH, os);
-
-        sendCommand(ServerCommand.LS);
+    public void copyOnAction(ActionEvent actionEvent) {
+//TODO:
     }
 
-    public void getFile(ActionEvent actionEvent) throws IOException {
-        String fileName = serverFilesListView.getSelectionModel().getSelectedItem();
 
-        if ((fileName == null) || (fileName.isEmpty())) return;
-
-        sendCommand(ServerCommand.GET, fileName);
-    }
+//    public void deleteFile(ActionEvent actionEvent) {
+//        String fileName = serverFilesListView.getSelectionModel().getSelectedItem();
+//        if ((fileName == null) || (fileName.isEmpty()) || fileName.startsWith(">>")) return;
+//
+//        try {
+//            sendCommand(ServerCommand.RM, fileName);
+//            sendCommand(ServerCommand.LS);
+//        } catch (IOException e) {
+//            LOG.error(e.getMessage());
+//        }
+//    }
+//
+//    public void sendFile(ActionEvent event) throws IOException {
+//        String fileName = clientFilesListView.getSelectionModel().getSelectedItem();
+//
+//        if ((fileName == null) || (fileName.isEmpty())) return;
+//
+//        FileMessage.sendByStream(clientPath.resolve(fileName), SEND_BUFFER_LENGTH, os);
+//
+//        sendCommand(ServerCommand.LS);
+//    }
+//
+//    public void getFile(ActionEvent actionEvent) throws IOException {
+//        String fileName = serverFilesListView.getSelectionModel().getSelectedItem();
+//
+//        if ((fileName == null) || (fileName.isEmpty())) return;
+//
+//        sendCommand(ServerCommand.GET, fileName);
+//    }
 }
