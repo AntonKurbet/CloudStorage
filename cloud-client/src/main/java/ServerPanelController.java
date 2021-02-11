@@ -29,13 +29,14 @@ public class ServerPanelController implements Initializable {
     private static final Logger LOG = LoggerFactory.getLogger(ServerPanelController.class);
 
     private ClientController mainController;
+    private String serverPath;
 
     public void setFiles(List<FileInfo> files) {
         this.files = files;
     }
 
-    public void setPathFieldText(String path) {
-        pathField.setText(path);
+    public void setServerPath(String serverPath) {
+        this.serverPath = serverPath;
     }
 
     @Override
@@ -120,7 +121,7 @@ public class ServerPanelController implements Initializable {
     }
 
     public void updateList() {
-        pathField.setText("");
+        pathField.setText(serverPath);
         filesTable.getItems().clear();
         filesTable.getItems().addAll(files);
         filesTable.sort();
@@ -131,6 +132,7 @@ public class ServerPanelController implements Initializable {
         try {
             mainController.sendCommand(ServerCommand.CD, "..");
             mainController.sendCommand(ServerCommand.LS);
+            pathField.setText(serverPath);
         } catch (IOException e) {
             LOG.error(e.getMessage());
         }

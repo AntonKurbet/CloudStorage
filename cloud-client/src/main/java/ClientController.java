@@ -135,7 +135,8 @@ public class ClientController implements Initializable {
         switch (((CommandMessage) cmd).getCommand()) {
             case CD:
                 String path = ((SimpleCommandMessage) cmd).getResult();
-                if (!path.isEmpty()) remotePC.setPathFieldText(path);
+                remotePC.setServerPath(path);
+                break;
             case RM:
                 break;
             case LS:
