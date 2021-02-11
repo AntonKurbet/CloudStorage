@@ -51,9 +51,9 @@ public class ClientController implements Initializable {
 
             try {
                 refreshClientListView();
-                sendCommand(ServerCommand.LS,null);
+                sendCommand(ServerCommand.LS, null);
             } catch (IOException e) {
-                e.printStackTrace();
+                LOG.error(e.getMessage());
             }
 
             new Thread(() -> {
@@ -61,12 +61,12 @@ public class ClientController implements Initializable {
                     try {
                         Object obj = is.readObject();
                         LOG.info("Received " + obj.getClass().getName());
-                        switch (obj.getClass().getName()) {
-                            case "TextMessage": LOG.info(obj.toString());
-                                                break;
-                            case "CommandMessage": ProcessCommandResult(obj);
-                            break;
-                            case "FileMessage" : ProcessFileMessage((FileMessage)obj);
+                        if (obj instanceof TextMessage) {
+                            LOG.info(obj.toString());
+                        } else if (obj instanceof CommandMessage) {
+                            ProcessCommandResult(obj);
+                        } else if (obj instanceof FileMessage) {
+                            ProcessFileMessage((FileMessage) obj);
                         }
                     } catch (Exception e) {
                         LOG.error("e = ", e);
@@ -83,51 +83,58 @@ public class ClientController implements Initializable {
         LOG.debug("Writing " + msg.getName());
         try {
             msg.writeData(clientPath.resolve(msg.getName()).toString());
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        try {
             refreshClientListView();
         } catch (IOException e) {
-            e.printStackTrace();
+            LOG.error(e.getMessage());
         }
     }
 
-    public void sendCommand(ServerCommand cmd) throws IOException {sendCommand(cmd, null);}
+    public void sendCommand(ServerCommand cmd) throws IOException {
+        sendCommand(cmd, null);
+    }
 
     public void sendCommand(ServerCommand cmd, String params) throws IOException {
         Object cmdObj;
         switch (cmd) {
             case CD:
             case RM:
-            case GET: cmdObj = new CommandMessage<Boolean>(cmd,params);
+            case GET:
+                cmdObj = new SimpleCommandMessage(cmd, params);
                 break;
-            case LS : cmdObj = new CommandMessage<List<String>>(cmd);
+            case LS:
+                cmdObj = new FileListCommandMessage(cmd);
                 break;
-            default: return;
+            default:
+                return;
         }
-
         os.writeObject(cmdObj);
         os.flush();
     }
 
     private void ProcessCommandResult(Object cmd) {
-        switch (((CommandMessage)cmd).getCommand()) {
-            case CD :
-            case RM :
-                        break;
-            case LS : List<String> files = ((CommandMessage<List<String>>)cmd).getResult();
-                        if (files != null) Platform.runLater(() -> {
-                            serverFilesListView.setItems(FXCollections.observableList(files));
-                        });
-                        break;
+        switch (((CommandMessage) cmd).getCommand()) {
+            case CD:
+            case RM:
+                break;
+            case LS:
+                List<String> files = ((FileListCommandMessage) cmd).getResult();
+                if (files != null) Platform.runLater(() -> {
+                    serverFilesListView.setItems(FXCollections.observableList(files));
+                });
+                break;
         }
     }
 
-    private void refreshClientListView() throws IOException {
-        clientFilesListView.setItems(
-                FXCollections.observableList(Files.list(clientPath).map(path -> path.getFileName().toString())
-                             .collect(Collectors.toList())));
+    private void refreshClientListView() {
+        Platform.runLater(() -> {
+            try {
+                clientFilesListView.setItems(
+                        FXCollections.observableList(Files.list(clientPath).map(path -> path.getFileName().toString())
+                                .collect(Collectors.toList())));
+            } catch (IOException e) {
+                LOG.error(e.getMessage());
+            }
+        });
     }
 
     public void changeDir(ActionEvent actionEvent) {
@@ -135,10 +142,10 @@ public class ClientController implements Initializable {
         if ((dirName == null) || (dirName.isEmpty()) || !dirName.startsWith(">>")) return;
 
         try {
-            sendCommand(ServerCommand.CD,dirName.substring(2));
+            sendCommand(ServerCommand.CD, dirName.substring(2));
             sendCommand(ServerCommand.LS);
         } catch (IOException e) {
-            e.printStackTrace();
+            LOG.error(e.getMessage());
         }
     }
 
@@ -147,10 +154,10 @@ public class ClientController implements Initializable {
         if ((fileName == null) || (fileName.isEmpty()) || fileName.startsWith(">>")) return;
 
         try {
-            sendCommand(ServerCommand.RM,fileName);
+            sendCommand(ServerCommand.RM, fileName);
             sendCommand(ServerCommand.LS);
         } catch (IOException e) {
-            e.printStackTrace();
+            LOG.error(e.getMessage());
         }
     }
 
@@ -159,7 +166,7 @@ public class ClientController implements Initializable {
 
         if ((fileName == null) || (fileName.isEmpty())) return;
 
-        FileMessage.sendByStream(clientPath.resolve(fileName),SEND_BUFFER_LENGTH, os);
+        FileMessage.sendByStream(clientPath.resolve(fileName), SEND_BUFFER_LENGTH, os);
 
         sendCommand(ServerCommand.LS);
     }
@@ -169,6 +176,6 @@ public class ClientController implements Initializable {
 
         if ((fileName == null) || (fileName.isEmpty())) return;
 
-        sendCommand(ServerCommand.GET,fileName);
+        sendCommand(ServerCommand.GET, fileName);
     }
 }

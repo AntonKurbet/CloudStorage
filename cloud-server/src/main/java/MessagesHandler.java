@@ -35,24 +35,26 @@ public class MessagesHandler extends SimpleChannelInboundHandler<ExchangeMessage
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, ExchangeMessage msg) throws Exception {
         LOG.info("Received " + msg.getClass().getName());
-        switch (msg.getClass().getName()) {
-            case "FileMessage" : processFileMessage((FileMessage) msg);
-                                 break;
-            case "CommandMessage": processCommandMessage((CommandMessage) msg, ctx);
-
-
+        if (msg instanceof FileMessage) {
+            processFileMessage((FileMessage) msg);
+        } else if (msg instanceof CommandMessage) {
+            processCommandMessage((CommandMessage) msg, ctx);
         }
     }
 
     private void processCommandMessage(CommandMessage msg, ChannelHandlerContext ctx) throws IOException {
         switch (msg.getCommand()) {
-            case LS: doLs((CommandMessage<List<String>>)msg);
-                       break;
-            case CD: doCd((CommandMessage<Boolean>)msg);
-                       break;
-            case RM: doRm((CommandMessage<Boolean>)msg);
-                       break;
-            case GET: doGet((CommandMessage<Boolean>)msg,ctx);
+            case LS:
+                doLs((FileListCommandMessage) msg);
+                break;
+            case CD:
+                doCd((SimpleCommandMessage) msg);
+                break;
+            case RM:
+                doRm((SimpleCommandMessage) msg);
+                break;
+            case GET:
+                doGet((SimpleCommandMessage) msg, ctx);
         }
         for (ChannelHandlerContext client : clients) {
             client.writeAndFlush(msg);
@@ -60,16 +62,16 @@ public class MessagesHandler extends SimpleChannelInboundHandler<ExchangeMessage
         LOG.info(String.format("Processed command %s (%s)", msg.getCommand(), msg.getParam()));
     }
 
-    private void doGet(CommandMessage<Boolean> msg, ChannelHandlerContext ctx) {
+    private void doGet(SimpleCommandMessage msg, ChannelHandlerContext ctx) {
         try {
             FileMessage.sendByStream(newPath.resolve((msg.getParam())),
                     SEND_BUFFER_LENGTH, ctx);
         } catch (IOException e) {
-            e.printStackTrace();
+            LOG.error(e.getMessage());
         }
     }
 
-    private void doRm(CommandMessage<Boolean> msg) throws IOException {
+    private void doRm(SimpleCommandMessage msg) throws IOException {
         Path tmpPath = newPath.resolve(msg.getParam());
         if (Files.exists(tmpPath)) {
             if (!Files.isDirectory(tmpPath)) {
@@ -79,14 +81,13 @@ public class MessagesHandler extends SimpleChannelInboundHandler<ExchangeMessage
         } else msg.setResult(false);
     }
 
-    private void doCd(CommandMessage<Boolean> msg) {
+    private void doCd(SimpleCommandMessage msg) {
         Path tmpPath = newPath.resolve(msg.getParam());
         if (Files.exists(tmpPath) && Files.isDirectory(tmpPath)) {
             if (tmpPath.toAbsolutePath().normalize().startsWith(serverPath)) {
                 newPath = tmpPath.toAbsolutePath().normalize();
                 msg.setResult(true);
-            }
-            else
+            } else
                 msg.setResult(false);
         } else {
             msg.setResult(false);
@@ -94,13 +95,13 @@ public class MessagesHandler extends SimpleChannelInboundHandler<ExchangeMessage
         LOG.info("current path is " + newPath);
     }
 
-    private void doLs(CommandMessage<List<String>> msg) throws IOException {
+    private void doLs(FileListCommandMessage msg) throws IOException {
         List<String> list = new ArrayList<>();
         if (!newPath.equals(serverPath)) list.add(">>..");
 
         list.addAll(Files.list(newPath).map(path -> Files.isDirectory(path) ?
                 ">>" + path.getFileName().toString() : path.getFileName().toString())
-                    .collect(Collectors.toList()));
+                .collect(Collectors.toList()));
         msg.setResult(list);
     }
 
@@ -109,7 +110,7 @@ public class MessagesHandler extends SimpleChannelInboundHandler<ExchangeMessage
         msg.writeData(newPath.resolve(msg.getName()).toString());
 
         for (ChannelHandlerContext client : clients) {
-            client.writeAndFlush(new TextMessage(String.format("Received %s part",msg.getName())));
+            client.writeAndFlush(new TextMessage(String.format("Received %s part", msg.getName())));
         }
     }
 
