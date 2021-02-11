@@ -94,6 +94,7 @@ public class LoginController {
                             LOG.info("Authorization failed");
                             return;
                         }
+                        LOG.info("Authorized user");
                         authorized = true;
                     }
                 } catch (Exception e) {

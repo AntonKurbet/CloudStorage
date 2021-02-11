@@ -63,9 +63,17 @@ public class MessagesHandler extends SimpleChannelInboundHandler<ExchangeMessage
     }
 
     private void doAuthorization(AuthorizationMessage msg) {
-        if (msg.getLogin().equals("user01") && msg.getPassword().equals("Pass0!")) {
-            msg.setResult(true);
-            this.authorized = true;
+        try {
+            SqlClient.connect();
+            String nick = SqlClient.getNickname(msg.getLogin(), msg.getPassword());
+            if (nick != null && !nick.isEmpty()) {
+                msg.setResult(true);
+                this.authorized = true;
+            }
+        } catch (RuntimeException e) {
+            LOG.error(e.getMessage());
+        } finally {
+            SqlClient.disconnect();
         }
     }
 
