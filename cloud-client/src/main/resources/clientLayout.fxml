@@ -6,7 +6,8 @@
 <AnchorPane prefHeight="400.0" prefWidth="600.0" xmlns="http://javafx.com/javafx/10.0.2-internal" xmlns:fx="http://javafx.com/fxml/1" fx:controller="ClientController">
    <ListView fx:id="clientFilesListView" layoutX="350.0" layoutY="15.0" prefHeight="370.0" prefWidth="230.0" />
    <ListView fx:id="serverFilesListView" layoutX="15.0" layoutY="15.0" prefHeight="370.0" prefWidth="230.0" />
-   <Button layoutX="253.0" layoutY="260.0" mnemonicParsing="false" onAction="#deleteFile" prefHeight="35.0" prefWidth="88.0" text="Удалить" />
-   <Button layoutX="253.0" layoutY="305.0" mnemonicParsing="false" onAction="#changeDir" prefHeight="35.0" prefWidth="88.0" text="В папку" />
+   <Button layoutX="253.0" layoutY="215.0" mnemonicParsing="false" onAction="#deleteFile" prefHeight="35.0" prefWidth="88.0" text="Удалить" />
+   <Button layoutX="253.0" layoutY="260.0" mnemonicParsing="false" onAction="#changeDir" prefHeight="35.0" prefWidth="88.0" text="В папку" />
+   <Button layoutX="253.0" layoutY="305.0" mnemonicParsing="false" onAction="#getFile" prefHeight="35.0" prefWidth="88.0" text="Получить" />
    <Button layoutX="253.0" layoutY="350.0" mnemonicParsing="false" onAction="#sendFile" prefHeight="35.0" prefWidth="88.0" text="Отправить" />
 </AnchorPane>

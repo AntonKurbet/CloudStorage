@@ -1,4 +1,5 @@
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -16,6 +17,7 @@ public class MessagesHandler extends SimpleChannelInboundHandler<ExchangeMessage
 
     private static final ConcurrentLinkedDeque<ChannelHandlerContext> clients = new ConcurrentLinkedDeque<>();
     private static final Logger LOG = LoggerFactory.getLogger(MessagesHandler.class);
+    private static final int SEND_BUFFER_LENGTH = 50;
 
     private Path serverPath = Paths.get(System.getProperty("user.home") + "/tmp").toAbsolutePath().normalize();
     private Path newPath = serverPath;
@@ -36,25 +38,35 @@ public class MessagesHandler extends SimpleChannelInboundHandler<ExchangeMessage
         switch (msg.getClass().getName()) {
             case "FileMessage" : processFileMessage((FileMessage) msg);
                                  break;
-            case "CommandMessage": processCommandMessage((CommandMessage) msg);
+            case "CommandMessage": processCommandMessage((CommandMessage) msg, ctx);
 
 
         }
     }
 
-    private void processCommandMessage(CommandMessage msg) throws IOException {
+    private void processCommandMessage(CommandMessage msg, ChannelHandlerContext ctx) throws IOException {
         switch (msg.getCommand()) {
-            case "ls": doLs((CommandMessage<List<String>>)msg);
+            case LS: doLs((CommandMessage<List<String>>)msg);
                        break;
-            case "cd": doCd((CommandMessage<Boolean>)msg);
+            case CD: doCd((CommandMessage<Boolean>)msg);
                        break;
-            case "rm": doRm((CommandMessage<Boolean>)msg);
+            case RM: doRm((CommandMessage<Boolean>)msg);
                        break;
+            case GET: doGet((CommandMessage<Boolean>)msg,ctx);
         }
         for (ChannelHandlerContext client : clients) {
             client.writeAndFlush(msg);
         }
         LOG.info(String.format("Processed command %s (%s)", msg.getCommand(), msg.getParam()));
+    }
+
+    private void doGet(CommandMessage<Boolean> msg, ChannelHandlerContext ctx) {
+        try {
+            FileMessage.sendByStream(newPath.resolve((msg.getParam())),
+                    SEND_BUFFER_LENGTH, ctx);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     private void doRm(CommandMessage<Boolean> msg) throws IOException {
@@ -93,18 +105,8 @@ public class MessagesHandler extends SimpleChannelInboundHandler<ExchangeMessage
     }
 
     private void processFileMessage(FileMessage msg) throws IOException {
-        boolean append = processing.contains(msg.getName());
-        if (!append) {
-            processing.add(msg.getName());
-            LOG.debug("New file: " + msg.getName());
-        }
-        msg.writeData(newPath.resolve(msg.getName()), append);
         LOG.debug("Writing " + msg.getName());
-
-        if (msg.getEnd()) {
-            processing.remove(msg.getName());
-            LOG.debug("Finished " + msg.getName());
-        }
+        msg.writeData(newPath.resolve(msg.getName()).toString());
 
         for (ChannelHandlerContext client : clients) {
             client.writeAndFlush(new TextMessage(String.format("Received %s part",msg.getName())));

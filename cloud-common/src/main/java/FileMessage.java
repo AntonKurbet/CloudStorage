@@ -1,3 +1,4 @@
+import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.serialization.ObjectEncoderOutputStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,7 +16,6 @@ public class FileMessage implements ExchangeMessage {
 
     private final String name;
     private final byte[] data;
-    private boolean end;
     private final LocalDateTime createAt;
 
     public FileMessage(Path path) throws IOException {
@@ -28,9 +28,28 @@ public class FileMessage implements ExchangeMessage {
         this.name = name;
         this.data = data;
         this.createAt = createAt;
-        this.end = end;
     }
 
+    public static void sendByStream(Path path, int partLength, ChannelHandlerContext ctx) throws IOException {
+        String name = path.getFileName().toString();
+        boolean overwrite = true;
+        LOG.info(String.format("Sending %s",name));
+        try (InputStream is = new FileInputStream(path.toString())) {
+            LocalDateTime dt = LocalDateTime.now();
+            int read;
+            byte[] buffer = new byte[partLength];
+
+            while (true) {
+                read = is.read(buffer);
+                if (read == -1) break;
+                byte[] data = new byte[read];
+                System.arraycopy(buffer, 0, data, 0, read);
+                ctx.writeAndFlush( new FileMessage(name, data, dt, overwrite));
+                LOG.info(String.format("Sent %d bytes",read));
+                overwrite = false;
+            }
+        }
+    }
     public static void sendByStream(Path path, int partLength, ObjectEncoderOutputStream writer ) throws IOException {
         String name = path.getFileName().toString();
         boolean overwrite = true;
@@ -80,10 +99,6 @@ public class FileMessage implements ExchangeMessage {
 
     public LocalDateTime getCreateAt() {
         return createAt;
-    }
-
-    public boolean getEnd() {
-        return end;
     }
 
     @Override

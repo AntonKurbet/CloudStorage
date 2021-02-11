@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.ResourceBundle;
 import java.util.stream.Collectors;
 
+import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.serialization.ObjectDecoderInputStream;
 import io.netty.handler.codec.serialization.ObjectEncoderOutputStream;
 import javafx.application.Platform;
@@ -32,16 +33,6 @@ public class ClientController implements Initializable {
     private ObjectEncoderOutputStream os;
     private ObjectDecoderInputStream is;
 
-    public void sendFile(ActionEvent event) throws IOException {
-        String fileName = clientFilesListView.getSelectionModel().getSelectedItem();
-
-        if ((fileName == null) || (fileName.isEmpty())) return;
-
-        FileMessage.sendByStream(clientPath.resolve(fileName),SEND_BUFFER_LENGTH, os);
-
-        sendCommand("ls");
-    }
-
     @Override
     public void initialize(URL location, ResourceBundle resources) {
         try {
@@ -59,8 +50,8 @@ public class ClientController implements Initializable {
             is = new ObjectDecoderInputStream(socket.getInputStream());
 
             try {
-                initListView();
-                sendCommand("ls",null);
+                refreshClientListView();
+                sendCommand(ServerCommand.LS,null);
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -74,6 +65,8 @@ public class ClientController implements Initializable {
                             case "TextMessage": LOG.info(obj.toString());
                                                 break;
                             case "CommandMessage": ProcessCommandResult(obj);
+                            break;
+                            case "FileMessage" : ProcessFileMessage((FileMessage)obj);
                         }
                     } catch (Exception e) {
                         LOG.error("e = ", e);
@@ -86,16 +79,30 @@ public class ClientController implements Initializable {
         }
     }
 
-    public void sendCommand(String cmd) throws IOException {sendCommand(cmd, null);}
+    private void ProcessFileMessage(FileMessage msg) {
+        LOG.debug("Writing " + msg.getName());
+        try {
+            msg.writeData(clientPath.resolve(msg.getName()).toString());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        try {
+            refreshClientListView();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 
-    public void sendCommand(String cmd, String params) throws IOException {
+    public void sendCommand(ServerCommand cmd) throws IOException {sendCommand(cmd, null);}
+
+    public void sendCommand(ServerCommand cmd, String params) throws IOException {
         Object cmdObj;
         switch (cmd) {
-            case "cd" : cmdObj = new CommandMessage<Boolean>("cd",params);
+            case CD:
+            case RM:
+            case GET: cmdObj = new CommandMessage<Boolean>(cmd,params);
                 break;
-            case "ls" : cmdObj = new CommandMessage<List<String>>("ls");
-                break;
-            case "rm" : cmdObj = new CommandMessage<Boolean>("rm",params);
+            case LS : cmdObj = new CommandMessage<List<String>>(cmd);
                 break;
             default: return;
         }
@@ -106,10 +113,10 @@ public class ClientController implements Initializable {
 
     private void ProcessCommandResult(Object cmd) {
         switch (((CommandMessage)cmd).getCommand()) {
-            case "cd" :
-            case "rm" :
+            case CD :
+            case RM :
                         break;
-            case "ls" : List<String> files = ((CommandMessage<List<String>>)cmd).getResult();
+            case LS : List<String> files = ((CommandMessage<List<String>>)cmd).getResult();
                         if (files != null) Platform.runLater(() -> {
                             serverFilesListView.setItems(FXCollections.observableList(files));
                         });
@@ -117,7 +124,7 @@ public class ClientController implements Initializable {
         }
     }
 
-    private void initListView() throws IOException {
+    private void refreshClientListView() throws IOException {
         clientFilesListView.setItems(
                 FXCollections.observableList(Files.list(clientPath).map(path -> path.getFileName().toString())
                              .collect(Collectors.toList())));
@@ -128,8 +135,8 @@ public class ClientController implements Initializable {
         if ((dirName == null) || (dirName.isEmpty()) || !dirName.startsWith(">>")) return;
 
         try {
-            sendCommand("cd",dirName.substring(2));
-            sendCommand("ls");
+            sendCommand(ServerCommand.CD,dirName.substring(2));
+            sendCommand(ServerCommand.LS);
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -140,10 +147,28 @@ public class ClientController implements Initializable {
         if ((fileName == null) || (fileName.isEmpty()) || fileName.startsWith(">>")) return;
 
         try {
-            sendCommand("rm",fileName);
-            sendCommand("ls");
+            sendCommand(ServerCommand.RM,fileName);
+            sendCommand(ServerCommand.LS);
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    public void sendFile(ActionEvent event) throws IOException {
+        String fileName = clientFilesListView.getSelectionModel().getSelectedItem();
+
+        if ((fileName == null) || (fileName.isEmpty())) return;
+
+        FileMessage.sendByStream(clientPath.resolve(fileName),SEND_BUFFER_LENGTH, os);
+
+        sendCommand(ServerCommand.LS);
+    }
+
+    public void getFile(ActionEvent actionEvent) throws IOException {
+        String fileName = serverFilesListView.getSelectionModel().getSelectedItem();
+
+        if ((fileName == null) || (fileName.isEmpty())) return;
+
+        sendCommand(ServerCommand.GET,fileName);
     }
 }
