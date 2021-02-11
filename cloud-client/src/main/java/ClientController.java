@@ -29,6 +29,7 @@ public class ClientController implements Initializable {
 
     private Path clientPath = Paths.get("./test_in").toAbsolutePath().normalize();
 
+    private Socket socket;
     private ObjectEncoderOutputStream os;
     private ObjectDecoderInputStream is;
 
@@ -40,10 +41,14 @@ public class ClientController implements Initializable {
 
     private boolean connected;
 
+    @FXML
+    public void exitApplication(ActionEvent event) {
+        Platform.exit();
+    }
+
     @Override
     public void initialize(URL location, ResourceBundle resources) {
         try {
-            Socket socket;
 
             try {
                 socket = new Socket("localhost", 8189);
@@ -176,12 +181,12 @@ public class ClientController implements Initializable {
         Platform.runLater(() -> System.exit(0));
     }
 
-    public void authorizeOnAction(ActionEvent actionEvent) {
+    public void copyOnAction(ActionEvent actionEvent) {
 //TODO:
     }
 
-    public void copyOnAction(ActionEvent actionEvent) {
-//TODO:
+    public void initSocket(Socket socket) {
+        this.socket = socket;
     }
 
 
