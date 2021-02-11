@@ -1,28 +1,23 @@
-
 import java.io.IOException;
 import java.net.Socket;
-import java.net.URL;
-import java.nio.file.Files;
+
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
 import java.util.List;
-import java.util.ResourceBundle;
-import java.util.stream.Collectors;
 
 import io.netty.handler.codec.serialization.ObjectDecoderInputStream;
 import io.netty.handler.codec.serialization.ObjectEncoderOutputStream;
 import javafx.application.Platform;
-import javafx.collections.FXCollections;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
-import javafx.fxml.Initializable;
-import javafx.scene.control.ListView;
 import javafx.scene.layout.VBox;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class ClientController implements Initializable {
+import static java.lang.Thread.sleep;
+
+public class ClientController {
 
     private static final Logger LOG = LoggerFactory.getLogger(ClientController.class);
     private static final int SEND_BUFFER_LENGTH = 65535;
@@ -46,36 +41,35 @@ public class ClientController implements Initializable {
         Platform.exit();
     }
 
-    @Override
-    public void initialize(URL location, ResourceBundle resources) {
+    public void initialize() {
         try {
+            refreshClientListView();
 
-            try {
-                socket = new Socket("localhost", 8189);
-                LOG.info("Connected to server...");
-                connected = true;
-            } catch (IOException e) {
-                LOG.error("e = ", e);
-                return;
-            }
-
-            os = new ObjectEncoderOutputStream(socket.getOutputStream());
-            is = new ObjectDecoderInputStream(socket.getInputStream());
-
-            try {
-                refreshClientListView();
-                sendCommand(ServerCommand.AUTH, new String[]{"user01", "Pass0!"});
-
-                localPC = (ClientPanelController) localFilesPanel.getProperties().get("controller");
-                remotePC = (ServerPanelController) remoteFilesPanel.getProperties().get("controller");
-                localPC.setMainController(this);
-                remotePC.setMainController(this);
-            } catch (IOException e) {
-                LOG.error(e.getMessage());
-            }
+            localPC = (ClientPanelController) localFilesPanel.getProperties().get("controller");
+            remotePC = (ServerPanelController) remoteFilesPanel.getProperties().get("controller");
+            localPC.setMainController(this);
+            remotePC.setMainController(this);
 
             new Thread(() -> {
-                while (true) {
+
+                while (!connected) {
+                    try {
+                        sleep(100);
+                    } catch (InterruptedException e) {
+                        LOG.error(e.getMessage());
+                    }
+                }
+
+                try {
+                    os = new ObjectEncoderOutputStream(socket.getOutputStream());
+                    is = new ObjectDecoderInputStream(socket.getInputStream());
+
+                    sendCommand(ServerCommand.LS);
+                } catch (IOException e) {
+                    LOG.error(e.getMessage());
+                }
+
+                while (connected) {
                     try {
                         Object obj = is.readObject();
                         LOG.info("Received " + obj.getClass().getName());
@@ -126,9 +120,6 @@ public class ClientController implements Initializable {
             case LS:
                 cmdObj = new FileListCommandMessage(cmd);
                 break;
-            case AUTH:
-                cmdObj = new AuthorizationMessage(params[0], params[1]);
-                break;
             default:
                 return;
         }
@@ -136,7 +127,7 @@ public class ClientController implements Initializable {
         os.flush();
     }
 
-    private void ProcessCommandResult(Object cmd) throws IOException {
+    private void ProcessCommandResult(Object cmd) {
         switch (((CommandMessage) cmd).getCommand()) {
             case CD:
                 String path = ((SimpleCommandMessage) cmd).getResult();
@@ -150,13 +141,6 @@ public class ClientController implements Initializable {
                     remotePC.setFiles(files);
                     remotePC.updateList();
                 });
-                break;
-            case AUTH:
-                if (!((AuthorizationMessage) cmd).getResult()) {
-                    LOG.info("Authorization failed");
-                    return;
-                }
-                sendCommand(ServerCommand.LS);
         }
     }
 
@@ -187,6 +171,7 @@ public class ClientController implements Initializable {
 
     public void initSocket(Socket socket) {
         this.socket = socket;
+        connected = true;
     }
 
 
