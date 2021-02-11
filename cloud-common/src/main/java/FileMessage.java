@@ -1,3 +1,7 @@
+import io.netty.handler.codec.serialization.ObjectEncoderOutputStream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -6,6 +10,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 
 public class FileMessage implements ExchangeMessage {
+
+    private static final Logger LOG = LoggerFactory.getLogger(FileMessage.class);
 
     private final String name;
     private final byte[] data;
@@ -25,12 +31,11 @@ public class FileMessage implements ExchangeMessage {
         this.end = end;
     }
 
-    public static ArrayList<FileMessage> GenerateSequence(Path path, int partLength)
-            throws IOException {
-        ArrayList<FileMessage> result = new ArrayList<>();
-
-            String name = path.getFileName().toString();
-            InputStream is = new FileInputStream(name);
+    public static void sendByStream(Path path, int partLength, ObjectEncoderOutputStream writer ) throws IOException {
+        String name = path.getFileName().toString();
+        boolean overwrite = true;
+        LOG.info(String.format("Sending %s",name));
+        try (InputStream is = new FileInputStream(path.toString())) {
             LocalDateTime dt = LocalDateTime.now();
             int read;
             byte[] buffer = new byte[partLength];
@@ -39,12 +44,12 @@ public class FileMessage implements ExchangeMessage {
                 read = is.read(buffer);
                 if (read == -1) break;
                 byte[] data = new byte[read];
-                System.arraycopy(buffer,0,data,0,read);
-                result.add(new FileMessage(name,data,dt,false));
+                System.arraycopy(buffer, 0, data, 0, read);
+                writer.writeObject( new FileMessage(name, data, dt, overwrite));
+                LOG.info(String.format("Sent %d bytes",read));
+                overwrite = false;
             }
-            result.get(result.size() - 1).end = true;
-            is.close();
-            return result;
+        }
     }
 
     public void writeObject(String dst) throws IOException {

@@ -36,11 +36,9 @@ public class ClientController implements Initializable {
         String fileName = clientFilesListView.getSelectionModel().getSelectedItem();
 
         if ((fileName == null) || (fileName.isEmpty())) return;
-        List<FileMessage> list = FileMessage.GenerateSequence(clientPath.resolve(fileName),SEND_BUFFER_LENGTH);
-        for (FileMessage f: list) {
-            os.writeObject(f);
-            os.flush();
-        }
+
+        FileMessage.sendByStream(clientPath.resolve(fileName),SEND_BUFFER_LENGTH, os);
+
         sendCommand("ls");
     }
 
