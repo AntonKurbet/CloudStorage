@@ -50,6 +50,14 @@ public class FileMessage implements ExchangeMessage {
             }
         }
     }
+
+//            ProgressBar pb = new ProgressBar();
+//            pb.setVisible(true);
+//            pb.setManaged(true);
+//            pb.setProgress( 1f / 100 * 5 );
+//            pb.setVisible(false);
+//            pb.setManaged(false);
+
     public static void sendByStream(Path path, int partLength, ObjectEncoderOutputStream writer ) throws IOException {
         String name = path.getFileName().toString();
         boolean overwrite = true;

@@ -13,7 +13,7 @@ import org.slf4j.LoggerFactory;
 public class MessagesHandler extends SimpleChannelInboundHandler<ExchangeMessage> {
 
     private static final Logger LOG = LoggerFactory.getLogger(MessagesHandler.class);
-    private static final int SEND_BUFFER_LENGTH = 50;
+    private static final int SEND_BUFFER_LENGTH = 65536;
 
     private Path serverPath = Paths.get(System.getProperty("user.home") + "/tmp").toAbsolutePath().normalize();
     private Path newPath = serverPath;
@@ -23,7 +23,7 @@ public class MessagesHandler extends SimpleChannelInboundHandler<ExchangeMessage
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) {
-        LOG.info("current path is " + serverPath);
+        //
     }
 
     @Override
@@ -55,11 +55,42 @@ public class MessagesHandler extends SimpleChannelInboundHandler<ExchangeMessage
             case GET:
                 doGet((SimpleCommandMessage) msg, ctx);
                 break;
+            case MV:
+                doMv((ArrayCommandMessage) msg);
+                break;
+            case MKDIR:
+                doMkDir((SimpleCommandMessage) msg);
+                break;
             case AUTH:
                 doAuthorization((AuthorizationMessage)msg);
         }
         ctx.writeAndFlush(msg);
         LOG.info(String.format("Processed command %s (%s)", msg.getCommand(), msg.getParam()));
+    }
+
+    private void doMkDir(SimpleCommandMessage msg) {
+        try {
+            Files.createDirectory(newPath.resolve(msg.getParam()));
+            msg.setResult("");
+        } catch (IOException e) {
+            msg.setResult("error");
+            LOG.error(e.getMessage());
+        }
+
+    }
+
+    private void doMv(ArrayCommandMessage msg) {
+        Path oldName = newPath.resolve(msg.getParamArray()[0]);
+        Path newName = newPath.resolve(msg.getParamArray()[1]);
+        if (Files.exists(oldName) && !Files.exists(newName)) {
+            try {
+                Files.copy(oldName,newName);
+                Files.delete(oldName);
+                msg.setResult("");
+            } catch (IOException e) {
+                LOG.error(e.getMessage());
+            }
+        } else msg.setResult("File not exists or can't overwrite");
     }
 
     private void doAuthorization(AuthorizationMessage msg) {
@@ -69,8 +100,13 @@ public class MessagesHandler extends SimpleChannelInboundHandler<ExchangeMessage
             if (nick != null && !nick.isEmpty()) {
                 msg.setResult(true);
                 this.authorized = true;
+                Path userPath = serverPath.resolve(msg.getLogin());
+                if (!Files.exists(userPath)) Files.createDirectories(userPath);
+                serverPath = userPath;
+                newPath = userPath;
+                LOG.info("current path is " + serverPath);
             }
-        } catch (RuntimeException e) {
+        } catch (RuntimeException | IOException e) {
             LOG.error(e.getMessage());
         } finally {
             SqlClient.disconnect();

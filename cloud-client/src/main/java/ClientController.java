@@ -1,16 +1,21 @@
 import java.io.IOException;
 import java.net.Socket;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
 import java.util.List;
+import java.util.Optional;
 
 import io.netty.handler.codec.serialization.ObjectDecoderInputStream;
 import io.netty.handler.codec.serialization.ObjectEncoderOutputStream;
 import javafx.application.Platform;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
+import javafx.scene.control.Alert;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.TextInputDialog;
 import javafx.scene.layout.VBox;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -115,7 +120,11 @@ public class ClientController {
             case CD:
             case RM:
             case GET:
+            case MKDIR:
                 cmdObj = new SimpleCommandMessage(cmd, params[0]);
+                break;
+            case MV:
+                cmdObj = new ArrayCommandMessage(cmd, params);
                 break;
             case LS:
                 cmdObj = new FileListCommandMessage(cmd);
@@ -133,8 +142,6 @@ public class ClientController {
                 String path = ((SimpleCommandMessage) cmd).getResult();
                 remotePC.setServerPath(path);
                 break;
-            case RM:
-                break;
             case LS:
                 List<FileInfo> files = ((FileListCommandMessage) cmd).getResult();
                 if (files != null) Platform.runLater(() -> {
@@ -148,25 +155,33 @@ public class ClientController {
         Platform.runLater(() -> localPC.updateList(clientPath));
     }
 
-//    public void changeDir(ActionEvent actionEvent) {
-//        FileInfo dir = remotePC.getSelectedItem();
-//        if (dir.getType() != FileInfo.FileType.DIR) return;
-//
-//        try {
-//            sendCommand(ServerCommand.CD, dir.getName());
-//            sendCommand(ServerCommand.LS);
-//        } catch (IOException e) {
-//            LOG.error(e.getMessage());
-//        }
-//    }
-
     public void exitOnAction(ActionEvent actionEvent) {
         connected = false;
         Platform.runLater(() -> System.exit(0));
     }
 
     public void copyOnAction(ActionEvent actionEvent) {
-//TODO:
+        if (!selectedFile()) return;
+
+        try {
+            if (localPC.getSelectedFilename() != null) {
+                FileMessage.sendByStream(clientPath.resolve(localPC.getSelectedFilename()), SEND_BUFFER_LENGTH, os);
+                sendCommand(ServerCommand.LS);
+            } else {
+                sendCommand(ServerCommand.GET, remotePC.getSelectedFilename());
+            }
+        } catch (IOException e) {
+            LOG.error(e.getMessage());
+        }
+    }
+
+    private boolean selectedFile() {
+        if (localPC.getSelectedFilename() == null && remotePC.getSelectedFilename() == null) {
+            Alert alert = new Alert(Alert.AlertType.WARNING, "No files selected", ButtonType.OK);
+            alert.showAndWait();
+            return false;
+        }
+        return true;
     }
 
     public void initSocket(Socket socket) {
@@ -174,34 +189,93 @@ public class ClientController {
         connected = true;
     }
 
+    public void renameOnAction(ActionEvent actionEvent) {
+        if (!selectedFile()) return;
 
-//    public void deleteFile(ActionEvent actionEvent) {
-//        String fileName = serverFilesListView.getSelectionModel().getSelectedItem();
-//        if ((fileName == null) || (fileName.isEmpty()) || fileName.startsWith(">>")) return;
-//
-//        try {
-//            sendCommand(ServerCommand.RM, fileName);
-//            sendCommand(ServerCommand.LS);
-//        } catch (IOException e) {
-//            LOG.error(e.getMessage());
-//        }
-//    }
-//
-//    public void sendFile(ActionEvent event) throws IOException {
-//        String fileName = clientFilesListView.getSelectionModel().getSelectedItem();
-//
-//        if ((fileName == null) || (fileName.isEmpty())) return;
-//
-//        FileMessage.sendByStream(clientPath.resolve(fileName), SEND_BUFFER_LENGTH, os);
-//
-//        sendCommand(ServerCommand.LS);
-//    }
-//
-//    public void getFile(ActionEvent actionEvent) throws IOException {
-//        String fileName = serverFilesListView.getSelectionModel().getSelectedItem();
-//
-//        if ((fileName == null) || (fileName.isEmpty())) return;
-//
-//        sendCommand(ServerCommand.GET, fileName);
-//    }
+        String oldFilename;
+        String newFilename;
+
+        try {
+            if (localPC.getSelectedFilename() != null) {
+                oldFilename = localPC.getSelectedFilename();
+                newFilename = confirmRename(oldFilename);
+                if (newFilename != null) {
+                    Files.copy(clientPath.resolve(oldFilename), clientPath.resolve(newFilename));
+                    Files.delete(clientPath.resolve(oldFilename));
+                    refreshClientListView();
+                }
+            } else {
+                oldFilename = remotePC.getSelectedFilename();
+                newFilename = confirmRename(oldFilename);
+                sendCommand(ServerCommand.MV, new String[]{remotePC.getSelectedFilename(), newFilename});
+                sendCommand(ServerCommand.LS);
+            }
+        } catch (IOException e) {
+            LOG.error(e.getMessage());
+        }
+
+    }
+
+    private String confirmRename(String oldFilename) {
+        TextInputDialog dialog = new TextInputDialog(oldFilename);
+        dialog.setTitle("Rename");
+        dialog.setHeaderText("You want to rename file");
+        dialog.setContentText("Please enter new name:");
+
+        Optional<String> result = dialog.showAndWait();
+        if (result.isPresent()) {
+            String newFilename = result.get();
+            if (!newFilename.equals(oldFilename))
+                return newFilename;
+            else
+                return null;
+        }
+        return null;
+    }
+
+    public void deleteOnAction(ActionEvent actionEvent) {
+        if (!selectedFile()) return;
+
+        try {
+            if (localPC.getSelectedFilename() != null) {
+                Files.delete(clientPath.resolve(localPC.getSelectedFilename()));
+                localPC.updateList(clientPath);
+            } else {
+                sendCommand(ServerCommand.RM, remotePC.getSelectedFilename());
+                sendCommand(ServerCommand.LS);
+            }
+        } catch (IOException e) {
+            LOG.error(e.getMessage());
+        }
+    }
+
+    private String getDirName() {
+        TextInputDialog dialog = new TextInputDialog("New Folder");
+        dialog.setTitle("Make dir");
+        dialog.setHeaderText("You want to make dir");
+        dialog.setContentText("Please enter dir name:");
+
+        Optional<String> result = dialog.showAndWait();
+        if (result.isPresent()) {
+            return result.get();
+        }
+        return null;
+    }
+
+    public void mkdirOnAction(ActionEvent actionEvent) {
+        String newDirName = getDirName();
+        if (newDirName != null) {
+            try {
+                if (localPC.getSelectedFilename() != null) {
+                    Files.createDirectory(clientPath.resolve(newDirName));
+                    localPC.updateList(clientPath);
+                } else {
+                    sendCommand(ServerCommand.MKDIR, newDirName);
+                    sendCommand(ServerCommand.LS);
+                }
+            } catch (IOException e) {
+                LOG.error(e.getMessage());
+            }
+        }
+    }
 }
