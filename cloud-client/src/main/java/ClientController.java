@@ -27,8 +27,6 @@ public class ClientController {
     private static final Logger LOG = LoggerFactory.getLogger(ClientController.class);
     private static final int SEND_BUFFER_LENGTH = 65535;
 
-    private Path clientPath = Paths.get("./test_in").toAbsolutePath().normalize();
-
     private Socket socket;
     private ObjectEncoderOutputStream os;
     private ObjectDecoderInputStream is;
@@ -54,6 +52,7 @@ public class ClientController {
             remotePC = (ServerPanelController) remoteFilesPanel.getProperties().get("controller");
             localPC.setMainController(this);
             remotePC.setMainController(this);
+            localPC.setCurrentPath(Paths.get("./test_in").toAbsolutePath().normalize());
 
             new Thread(() -> {
 
@@ -99,7 +98,7 @@ public class ClientController {
     private void ProcessFileMessage(FileMessage msg) {
         LOG.debug("Writing " + msg.getName());
         try {
-            msg.writeData(clientPath.resolve(msg.getName()).toString());
+            msg.writeData(localPC.getCurrentPath().resolve(msg.getName()).toString());
             refreshClientListView();
         } catch (IOException e) {
             LOG.error(e.getMessage());
@@ -152,7 +151,7 @@ public class ClientController {
     }
 
     private void refreshClientListView() {
-        Platform.runLater(() -> localPC.updateList(clientPath));
+        Platform.runLater(() -> localPC.updateList());
     }
 
     public void exitOnAction(ActionEvent actionEvent) {
@@ -165,7 +164,7 @@ public class ClientController {
 
         try {
             if (localPC.getSelectedFilename() != null) {
-                FileMessage.sendByStream(clientPath.resolve(localPC.getSelectedFilename()), SEND_BUFFER_LENGTH, os);
+                FileMessage.sendByStream(localPC.getCurrentPath().resolve(localPC.getSelectedFilename()), SEND_BUFFER_LENGTH, os);
                 sendCommand(ServerCommand.LS);
             } else {
                 sendCommand(ServerCommand.GET, remotePC.getSelectedFilename());
@@ -200,8 +199,9 @@ public class ClientController {
                 oldFilename = localPC.getSelectedFilename();
                 newFilename = confirmRename(oldFilename);
                 if (newFilename != null) {
-                    Files.copy(clientPath.resolve(oldFilename), clientPath.resolve(newFilename));
-                    Files.delete(clientPath.resolve(oldFilename));
+                    Files.copy(localPC.getCurrentPath().resolve(oldFilename),
+                            localPC.getCurrentPath().resolve(newFilename));
+                    Files.delete(localPC.getCurrentPath().resolve(oldFilename));
                     refreshClientListView();
                 }
             } else {
@@ -238,8 +238,8 @@ public class ClientController {
 
         try {
             if (localPC.getSelectedFilename() != null) {
-                Files.delete(clientPath.resolve(localPC.getSelectedFilename()));
-                localPC.updateList(clientPath);
+                Files.delete(localPC.getCurrentPath().resolve(localPC.getSelectedFilename()));
+                localPC.updateList();
             } else {
                 sendCommand(ServerCommand.RM, remotePC.getSelectedFilename());
                 sendCommand(ServerCommand.LS);
@@ -267,8 +267,8 @@ public class ClientController {
         if (newDirName != null) {
             try {
                 if (localPC.getSelectedFilename() != null) {
-                    Files.createDirectory(clientPath.resolve(newDirName));
-                    localPC.updateList(clientPath);
+                    Files.createDirectory(localPC.getCurrentPath().resolve(newDirName));
+                    localPC.updateList();
                 } else {
                     sendCommand(ServerCommand.MKDIR, newDirName);
                     sendCommand(ServerCommand.LS);

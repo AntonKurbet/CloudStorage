@@ -99,18 +99,23 @@ public class ServerPanelController implements Initializable {
         filesTable.setOnMouseClicked(new EventHandler<MouseEvent>() {
             @Override
             public void handle(MouseEvent event) {
-                String filename = filesTable.getSelectionModel().getSelectedItem().getName();
-                FileInfo i = files.stream()
-                        .filter(f -> filename.equals(f.getName()))
-                        .findAny()
-                        .orElse(null);
+                if (event.getClickCount() == 2) {
+                    FileInfo item = filesTable.getSelectionModel().getSelectedItem();
+                    if (item != null) {
+                        String filename = item.getName();
+                        FileInfo i = files.stream()
+                                .filter(f -> filename.equals(f.getName()))
+                                .findAny()
+                                .orElse(null);
 
-                if (i.getType() == FileInfo.FileType.DIR) {
-                    try {
-                        mainController.sendCommand(ServerCommand.CD, filename);
-                        mainController.sendCommand(ServerCommand.LS);
-                    } catch (IOException e) {
-                        LOG.error(e.getMessage());
+                        if (i.getType() == FileInfo.FileType.DIR) {
+                            try {
+                                mainController.sendCommand(ServerCommand.CD, filename);
+                                mainController.sendCommand(ServerCommand.LS);
+                            } catch (IOException e) {
+                                LOG.error(e.getMessage());
+                            }
+                        }
                     }
                 }
             }

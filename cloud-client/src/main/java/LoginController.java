@@ -20,7 +20,7 @@ public class LoginController {
     @FXML
     private TextField userField;
     @FXML
-    private TextField passField;
+    private PasswordField passField;
 
     private Socket socket;
     private Scene scene;
@@ -92,7 +92,6 @@ public class LoginController {
                     if (obj instanceof AuthorizationMessage) {
                         if (!((AuthorizationMessage) obj).getResult()) {
                             LOG.info("Authorization failed");
-                            return;
                         }
                         LOG.info("Authorized user");
                         authorized = true;

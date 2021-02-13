@@ -106,6 +106,7 @@ public class MessagesHandler extends SimpleChannelInboundHandler<ExchangeMessage
                 newPath = userPath;
                 LOG.info("current path is " + serverPath);
             }
+            else msg.setResult(false);
         } catch (RuntimeException | IOException e) {
             LOG.error(e.getMessage());
         } finally {

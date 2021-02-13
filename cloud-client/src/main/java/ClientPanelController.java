@@ -29,6 +29,7 @@ public class ClientPanelController implements Initializable {
     TextField pathField;
 
     private ClientController mainController;
+    private Path currentPath;
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
@@ -96,9 +97,14 @@ public class ClientPanelController implements Initializable {
         filesTable.setOnMouseClicked(new EventHandler<MouseEvent>() {
             @Override
             public void handle(MouseEvent event) {
-                Path path = Paths.get(pathField.getText()).resolve(filesTable.getSelectionModel().getSelectedItem().getName());
-                if (Files.isDirectory(path))
-                    updateList(path);
+                if (event.getClickCount() == 2) {
+                    FileInfo item = filesTable.getSelectionModel().getSelectedItem();
+                    if (item != null) {
+                        Path path = Paths.get(pathField.getText()).resolve(item.getName());
+                        if (Files.isDirectory(path))
+                            updateList(path);
+                    }
+                }
             }
         });
 
@@ -107,8 +113,12 @@ public class ClientPanelController implements Initializable {
         updateList(Paths.get("."));
     }
 
+    void updateList() {
+        updateList(currentPath);
+    }
     void updateList(Path path) {
         try {
+            currentPath = path;
             pathField.setText(path.normalize().toAbsolutePath().toString());
             filesTable.getItems().clear();
             filesTable.getItems().addAll(Files.list(path).map(FileInfo::new).collect(Collectors.toList()));
@@ -137,8 +147,12 @@ public class ClientPanelController implements Initializable {
         return filesTable.getSelectionModel().getSelectedItem().getName();
     }
 
-    public String getCurrentPath() {
-        return pathField.getText();
+    public void setCurrentPath(Path currentPath) {
+        this.currentPath = currentPath;
+    }
+
+    public Path getCurrentPath() {
+        return currentPath;
     }
 
     public void setMainController(ClientController mainController) {
