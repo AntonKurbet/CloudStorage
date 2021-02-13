@@ -1,12 +1,29 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
+<?import java.lang.*?>
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
 
-<AnchorPane prefHeight="400.0" prefWidth="600.0" xmlns="http://javafx.com/javafx/10.0.2-internal" xmlns:fx="http://javafx.com/fxml/1" fx:controller="ClientController">
-   <ListView fx:id="clientFilesListView" layoutX="350.0" layoutY="15.0" prefHeight="370.0" prefWidth="230.0" />
-   <ListView fx:id="serverFilesListView" layoutX="15.0" layoutY="15.0" prefHeight="370.0" prefWidth="230.0" />
-   <Button layoutX="253.0" layoutY="260.0" mnemonicParsing="false" onAction="#deleteFile" prefHeight="35.0" prefWidth="88.0" text="Удалить" />
-   <Button layoutX="253.0" layoutY="305.0" mnemonicParsing="false" onAction="#changeDir" prefHeight="35.0" prefWidth="88.0" text="В папку" />
-   <Button layoutX="253.0" layoutY="350.0" mnemonicParsing="false" onAction="#sendFile" prefHeight="35.0" prefWidth="88.0" text="Отправить" />
-</AnchorPane>
+<?import javafx.geometry.Insets?>
+<VBox xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="ClientController">
+<!--    <MenuBar>-->
+<!--        <Menu text="File">-->
+<!--            <MenuItem text="Exit" onAction="#exitOnAction"/>-->
+<!--        </Menu>-->
+<!--    </MenuBar>-->
+    <HBox VBox.vgrow="ALWAYS">
+        <fx:include fx:id="localFilesPanel" source="clientPanel.fxml" HBox.hgrow="ALWAYS"/>
+        <fx:include fx:id="remoteFilesPanel" source="serverPanel.fxml" HBox.hgrow="ALWAYS"/>
+    </HBox>
+    <HBox spacing="5">
+        <Button focusTraversable="false" maxWidth="Infinity" text="Copy" HBox.hgrow="ALWAYS" onAction="#copyOnAction"/>
+        <Button focusTraversable="false" maxWidth="Infinity" text="Rename" HBox.hgrow="ALWAYS" onAction="#renameOnAction"/>
+        <Button focusTraversable="false" maxWidth="Infinity" text="MkDir" HBox.hgrow="ALWAYS" onAction="#mkdirOnAction"/>
+        <Button focusTraversable="false" maxWidth="Infinity" text="Delete" HBox.hgrow="ALWAYS" onAction="#deleteOnAction"/>
+        <Button focusTraversable="false" maxWidth="Infinity" text="Exit" HBox.hgrow="ALWAYS" onAction="#exitOnAction"/>
+        <padding>
+            <Insets top="5" bottom="5" left="5" right="5"/>
+        </padding>
+    </HBox>
+</VBox>

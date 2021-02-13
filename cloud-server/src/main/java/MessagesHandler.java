@@ -1,10 +1,8 @@
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
-import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.stream.Collectors;
 
 import io.netty.channel.ChannelHandlerContext;
@@ -14,105 +12,154 @@ import org.slf4j.LoggerFactory;
 
 public class MessagesHandler extends SimpleChannelInboundHandler<ExchangeMessage> {
 
-    private static final ConcurrentLinkedDeque<ChannelHandlerContext> clients = new ConcurrentLinkedDeque<>();
     private static final Logger LOG = LoggerFactory.getLogger(MessagesHandler.class);
+    private static final int SEND_BUFFER_LENGTH = 65536;
 
     private Path serverPath = Paths.get(System.getProperty("user.home") + "/tmp").toAbsolutePath().normalize();
     private Path newPath = serverPath;
     private static HashSet<String> processing = new HashSet<>();
 
-    private static int cnt = 0;
+    private boolean authorized = false;
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) {
-        clients.add(ctx);
-        cnt++;
-        LOG.info("current path is " + serverPath);
+        //
     }
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, ExchangeMessage msg) throws Exception {
         LOG.info("Received " + msg.getClass().getName());
-        switch (msg.getClass().getName()) {
-            case "FileMessage" : processFileMessage((FileMessage) msg);
-                                 break;
-            case "CommandMessage": processCommandMessage((CommandMessage) msg);
-
-
+        if (msg instanceof FileMessage) {
+            processFileMessage((FileMessage) msg, ctx);
+        } else if (msg instanceof CommandMessage) {
+            processCommandMessage((CommandMessage) msg, ctx);
         }
     }
 
-    private void processCommandMessage(CommandMessage msg) throws IOException {
+    private void processCommandMessage(CommandMessage msg, ChannelHandlerContext ctx) throws IOException {
+        if (!authorized && msg.getCommand() != ServerCommand.AUTH) {
+            LOG.info("Not authorized");
+            return;
+        }
+
         switch (msg.getCommand()) {
-            case "ls": doLs((CommandMessage<List<String>>)msg);
-                       break;
-            case "cd": doCd((CommandMessage<Boolean>)msg);
-                       break;
-            case "rm": doRm((CommandMessage<Boolean>)msg);
-                       break;
+            case LS:
+                doLs((FileListCommandMessage) msg);
+                break;
+            case CD:
+                doCd((SimpleCommandMessage) msg);
+                break;
+            case RM:
+                doRm((SimpleCommandMessage) msg);
+                break;
+            case GET:
+                doGet((SimpleCommandMessage) msg, ctx);
+                break;
+            case MV:
+                doMv((ArrayCommandMessage) msg);
+                break;
+            case MKDIR:
+                doMkDir((SimpleCommandMessage) msg);
+                break;
+            case AUTH:
+                doAuthorization((AuthorizationMessage)msg);
         }
-        for (ChannelHandlerContext client : clients) {
-            client.writeAndFlush(msg);
-        }
+        ctx.writeAndFlush(msg);
         LOG.info(String.format("Processed command %s (%s)", msg.getCommand(), msg.getParam()));
     }
 
-    private void doRm(CommandMessage<Boolean> msg) throws IOException {
+    private void doMkDir(SimpleCommandMessage msg) {
+        try {
+            Files.createDirectory(newPath.resolve(msg.getParam()));
+            msg.setResult("");
+        } catch (IOException e) {
+            msg.setResult("error");
+            LOG.error(e.getMessage());
+        }
+
+    }
+
+    private void doMv(ArrayCommandMessage msg) {
+        Path oldName = newPath.resolve(msg.getParamArray()[0]);
+        Path newName = newPath.resolve(msg.getParamArray()[1]);
+        if (Files.exists(oldName) && !Files.exists(newName)) {
+            try {
+                Files.copy(oldName,newName);
+                Files.delete(oldName);
+                msg.setResult("");
+            } catch (IOException e) {
+                LOG.error(e.getMessage());
+            }
+        } else msg.setResult("File not exists or can't overwrite");
+    }
+
+    private void doAuthorization(AuthorizationMessage msg) {
+        try {
+            SqlClient.connect();
+            String nick = SqlClient.getNickname(msg.getLogin(), msg.getPassword());
+            if (nick != null && !nick.isEmpty()) {
+                msg.setResult(true);
+                this.authorized = true;
+                Path userPath = serverPath.resolve(msg.getLogin());
+                if (!Files.exists(userPath)) Files.createDirectories(userPath);
+                serverPath = userPath;
+                newPath = userPath;
+                LOG.info("current path is " + serverPath);
+            }
+            else msg.setResult(false);
+        } catch (RuntimeException | IOException e) {
+            LOG.error(e.getMessage());
+        } finally {
+            SqlClient.disconnect();
+        }
+    }
+
+    private void doGet(SimpleCommandMessage msg, ChannelHandlerContext ctx) {
+        try {
+            FileMessage.sendByStream(newPath.resolve((msg.getParam())),
+                    SEND_BUFFER_LENGTH, ctx);
+        } catch (IOException e) {
+            LOG.error(e.getMessage());
+        }
+    }
+
+    private void doRm(SimpleCommandMessage msg) throws IOException {
         Path tmpPath = newPath.resolve(msg.getParam());
         if (Files.exists(tmpPath)) {
             if (!Files.isDirectory(tmpPath)) {
                 Files.delete(tmpPath);
-                msg.setResult(true);
+                msg.setResult("");
             }
-        } else msg.setResult(false);
+        } else msg.setResult("File not exists");
     }
 
-    private void doCd(CommandMessage<Boolean> msg) {
+    private void doCd(SimpleCommandMessage msg) {
         Path tmpPath = newPath.resolve(msg.getParam());
         if (Files.exists(tmpPath) && Files.isDirectory(tmpPath)) {
             if (tmpPath.toAbsolutePath().normalize().startsWith(serverPath)) {
                 newPath = tmpPath.toAbsolutePath().normalize();
-                msg.setResult(true);
-            }
-            else
-                msg.setResult(false);
+                msg.setResult(newPath.toString().substring(serverPath.toString().length()));
+            } else
+                msg.setResult("Can't move there");
         } else {
-            msg.setResult(false);
+            msg.setResult("Not a directory");
         }
         LOG.info("current path is " + newPath);
     }
 
-    private void doLs(CommandMessage<List<String>> msg) throws IOException {
-        List<String> list = new ArrayList<>();
-        if (!newPath.equals(serverPath)) list.add(">>..");
-
-        list.addAll(Files.list(newPath).map(path -> Files.isDirectory(path) ?
-                ">>" + path.getFileName().toString() : path.getFileName().toString())
-                    .collect(Collectors.toList()));
+    private void doLs(FileListCommandMessage msg) throws IOException {
+        List<FileInfo> list = new ArrayList<>(Files.list(newPath).map(FileInfo::new).collect(Collectors.toList()));
         msg.setResult(list);
     }
 
-    private void processFileMessage(FileMessage msg) throws IOException {
-        boolean append = processing.contains(msg.getName());
-        if (!append) {
-            processing.add(msg.getName());
-            LOG.debug("New file: " + msg.getName());
-        }
-        msg.writeData(newPath.resolve(msg.getName()), append);
+    private void processFileMessage(FileMessage msg, ChannelHandlerContext ctx) throws IOException {
         LOG.debug("Writing " + msg.getName());
-
-        if (msg.getEnd()) {
-            processing.remove(msg.getName());
-            LOG.debug("Finished " + msg.getName());
-        }
-
-        for (ChannelHandlerContext client : clients) {
-            client.writeAndFlush(new TextMessage(String.format("Received %s part",msg.getName())));
-        }
+        msg.writeData(newPath.resolve(msg.getName()).toString());
+        ctx.writeAndFlush(new TextMessage(String.format("Received %s part", msg.getName())));
     }
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) {
-        clients.remove(ctx);
+//
     }
 }

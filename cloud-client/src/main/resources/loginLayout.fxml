@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import java.lang.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<?import javafx.geometry.Insets?>
+<VBox xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="LoginController">
+    <TextField fx:id="userField" editable="true" HBox.hgrow="ALWAYS"/>
+    <PasswordField fx:id="passField" editable="true" HBox.hgrow="ALWAYS"/>
+    <HBox spacing="5">
+        <Button focusTraversable="false" maxWidth="Infinity" text="Login" HBox.hgrow="ALWAYS"
+                onAction="#authorizeOnAction"/>
+        <Button focusTraversable="false" maxWidth="Infinity" text="Exit" HBox.hgrow="ALWAYS"
+                onAction="#exitOnAction"/>
+        <padding>
+            <Insets top="5" bottom="5" left="5" right="5"/>
+        </padding>
+    </HBox>
+    <padding>
+        <Insets top="20" bottom="20" left="20" right="20"/>
+    </padding>
+</VBox>
